@@ -1,6 +1,5 @@
 # http://eslint.org/docs/rules/
 {
-  "parser": "babel-eslint",
   "plugins": ["output-todo-comments"],
   "extends": ["eslint:recommended"],
   "env": {

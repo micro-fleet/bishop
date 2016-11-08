@@ -1,0 +1,35 @@
+const service = require('humber')()
+
+service
+  .add({ some: 'route' }, { options }, method)
+  .add({ other: 'route' }, method)
+  .use(plugin)
+  .ready()
+
+service.act(service.route.test, { some: 'data' }).then(console.log)
+
+service
+  .remote({
+    type: 'amqp',
+    ...
+  })
+  .remote({
+    name: 'sometest',
+    type: 'rest',
+    ...
+  })
+
+service
+  .listen({
+    type: 'amqp',
+    host: '...'
+  })
+  .listen({
+    type: 'rest',
+    port: 80,
+    mapping: {
+      // { role: 'users', action: 'get', id: 123 } => GET /users/123
+      // { role: 'users', action: 'create' } => POST /users
+      // { role: 'users', action: 'delete', userId: 'me' } => DELETE /users/me/followers/456
+    }
+  })

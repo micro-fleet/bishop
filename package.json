@@ -1,0 +1,23 @@
+{
+  "name": "humber",
+  "version": "1.0.0",
+  "description": "A Microservices Framework for Node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/afoninsky/humber.git"
+  },
+  "author": "Andrey Afoninsky",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/afoninsky/humber/issues"
+  },
+  "homepage": "https://github.com/afoninsky/humber#readme",
+  "devDependencies": {
+    "eslint": "^3.9.1",
+    "eslint-plugin-output-todo-comments": "0.0.6"
+  }
+}
