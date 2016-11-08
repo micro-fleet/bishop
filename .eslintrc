@@ -1,0 +1,27 @@
+# http://eslint.org/docs/rules/
+{
+  "parser": "babel-eslint",
+  "plugins": ["output-todo-comments"],
+  "extends": ["eslint:recommended"],
+  "env": {
+    "node": true,
+    "mocha": true,
+    "es6": true
+  },
+  "rules": {
+    "complexity": ["warn", 10],
+    "no-console": "off",
+    "new-cap": "off",
+    "strict": "off",
+    "no-use-before-define": "off",
+    "eol-last": "off",
+    "quotes": ["error", "single"],
+    "output-todo-comments/output-todo-comments": ["warn", {
+      "terms": ["todo", "fixme", "2do"]
+    }]
+  },
+  "globals": {
+    "angular": true,
+    "CONFIG": true
+  }
+}
