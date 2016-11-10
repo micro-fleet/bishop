@@ -2,34 +2,80 @@ const patrun = require('patrun')
 const ld = require('lodash')
 
 module.exports = () => {
-  const pm = patrun({ gex:true })
+  const pmAll = patrun({ gex:true })
+  const pmLocal = patrun({ gex:true })
 
   return {
 
+    // loaded remote connectors
+    remote: {},
+
+    // append handler for route (local or remote)
+    // .add(route, function)
+    // .add(route, 'transportname')
     add(route, handler) {
-      pm.add(route, { handler })
+      const transport = ld.isFunction(handler) ? 'local' : handler
+
+      const options = { transport }
+      if (transport === 'local') {
+        options.handler = handler
+        pmLocal.add(route, options)
+      }
+      pmAll.add(route, options)
     },
 
-    async act(route, data) {
+    // expect options as last parameter
+    // .local - search only in local patterns
+    async actCustom(...input) {
+      const [ route, data = {}, options = {} ] = input
+      
       const pattern = (() => {
-        if (ld.isFunction(data)) {
+        if (input.length <= 2) {
           return route
         }
         return Object.assign({}, route, data)
       })()
-      const matchResult = pm.find(pattern)
+
+      const { local } = options
+      const matchResult = (local ? pmLocal : pmAll).find(pattern)
       if (!matchResult) {
         throw new Error(`route ${JSON.stringify(route)} not found`)
       }
-      return await matchResult.handler(pattern)
+
+      const { transport, handler } = matchResult
+      if (transport === 'local') {
+        return await handler(pattern)
+      }
+      const remoteHandler = this.remote[transport].act
+      return await remoteHandler(...input)
     },
 
+    // same as .act, but without options
+    async act(route, data) {
+      return this.actCustom(route, data)
+    },
+
+    // load plugin, module etc
     async use(input, options) {
       const plugin = typeof input === 'string' ? require(input) : input
-      if (!ld.isFunction(plugin)) {
-        throw new Error('.use: invalid plugin')
+      if (!ld.isFunction(plugin)) { throw new Error('.use: function expected') }
+
+      const data = await plugin(this, options)
+
+      if (!data) { return } // no data returned
+      const { name } = data
+
+      switch (data.type) {
+        case 'remote':
+          if (!name) { throw new Error('.use: remote plugins should contain names') }
+          this.remote[name] = data
+          break
       }
-      await plugin(this, options)
+    },
+
+    listen(name, options) {
+      //
     }
+
   }
 }

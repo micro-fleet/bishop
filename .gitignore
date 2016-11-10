@@ -1,7 +1,4 @@
 node_modules/
 .DS_Store
-debug/
 *.log
-.nyc_output/
-coverage/
-source-context*.json
+yarn.lock
