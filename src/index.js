@@ -7,6 +7,8 @@ module.exports = () => {
 
   return {
 
+    log: console,
+
     // loaded remote connectors
     remote: {},
 
@@ -28,7 +30,7 @@ module.exports = () => {
     // .local - search only in local patterns
     async actCustom(...input) {
       const [ route, data = {}, options = {} ] = input
-      
+
       const pattern = (() => {
         if (input.length <= 2) {
           return route
