@@ -1,12 +1,29 @@
 const humbler = require('./src')()
 
-humbler.add({ qwe: 'asd' }, data => {
-  data.test = 'response'
-  return data
-})
+// add basic route
+humbler.add({ role: 'test', command: 'echo' }, data => data)
 
-const route = { qwe: 'asd'}
-humbler.act(route, { qswe: 'sd'}).then(data => {
-  console.log('result is returned:')
-  console.log(data)
-})
+// load module with routes
+const plugin = humbler => {
+
+  humbler.add({ role: 'test', command: 'string' }, () => {
+    return 'string response'
+  })
+
+  humbler.add({ role: 'test', command: 'buffer' }, () => {
+    return Buffer.from('buffer response')
+  })
+
+}
+
+humbler.use(plugin)
+
+;(async () => {
+  const echoResult = await humbler.act({ role: 'test', command: 'echo' }, { echo: 'meow' })
+  const stringResult = await humbler.act({ role: 'test', command: 'string' })
+  const bufferResult = await humbler.act({ role: 'test', command: 'buffer' })
+
+  console.log('echo:', echoResult)
+  console.log('string:', stringResult)
+  console.log('buffer:', bufferResult.toString())
+})()

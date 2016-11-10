@@ -1,3 +1,5 @@
+// node --harmony_async_await benchmarks/act.js
+
 const Benchmark = require('benchmark')
 const suite = new Benchmark.Suite
 
