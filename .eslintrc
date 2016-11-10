@@ -2,6 +2,9 @@
 {
   "plugins": ["output-todo-comments"],
   "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": 8
+  },
   "env": {
     "node": true,
     "mocha": true,

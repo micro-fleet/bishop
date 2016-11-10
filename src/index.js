@@ -1,27 +1,26 @@
-const { createRouteHash } = require('./utils')
+const patrun = require('patrun')
 
-class Humber {
-  constructor() {
-    //
-  }
+module.exports = () => {
+  const pm = patrun({ gex:true })
 
-  add(route, options, handler) {
-    console.log(createRouteHash(route))
-    return this
-  }
+  return {
 
-  use(plugin, options) {
-    return this
-  }
+    add(route, handler) {
+      pm.add(route, { handler })
+    },
 
-  ready() {}
-
-  connect() {
-    return this
-  }
-
-  listen() {
-    return this
+    async act(route, data) {
+      const pattern = (() => {
+        if (typeof data === 'function') {
+          return route
+        }
+        return Object.assign({}, route, data)
+      })()
+      const matchResult = pm.find(pattern)
+      if (!matchResult) {
+        throw new Error(`route ${JSON.stringify(route)} not found`)
+      }
+      return await matchResult.handler(pattern)
+    }
   }
 }
-module.exports = Humber

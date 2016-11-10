@@ -1,9 +1,17 @@
 module.exports = {
-  createRouteHash(routeObj) {
-    const hash = []
-    for (let name in routeObj) {
-      hash.push(`${name}:${routeObj[name]}`)
-    }
-    return hash
-  }
+
+  //
+  // defaults(input) {
+  //   const { data, method, defaults } = input
+  //   if (typeof data === 'function') {
+  //     return {
+  //       config: Object.assign({}, defaults),
+  //       method: config
+  //     }
+  //   }
+  //   return {
+  //     config: Object.assign(config, defaults),
+  //     method: method
+  //   }
+  // }
 }
