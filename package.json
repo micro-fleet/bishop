@@ -1,8 +1,8 @@
 {
-  "name": "humber",
+  "name": "bishop",
   "version": "1.0.0",
   "description": "A Microservices Framework for Node.js",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
