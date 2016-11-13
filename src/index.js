@@ -2,9 +2,15 @@ const patrun = require('patrun')
 const ld = require('lodash')
 const { objectify } = require('./utils')
 
-module.exports = () => {
+const defaultConfig = {
+  timeout: 500
+}
+
+module.exports = (_config = {}) => {
   const pmAll = patrun({ gex:true })
   const pmLocal = patrun({ gex:true })
+
+  const config = ld.assign({}, defaultConfig, _config)
 
   return {
 
@@ -31,40 +37,29 @@ module.exports = () => {
     },
 
     // expect options as last parameter
-    // .local - search only in local patterns
-    // .nowait - resolve on message success send, dont wait for answer
-    async actCustom(...input) {
-      const [ route, payload = {}, options = {} ] = input
+    // $timeout - redefine global request timeout
+    // $local - search only in local patterns, dont request remote connections
+    // $nowait - resolve then message is sent, dont wait for answer {not implemented}
+    async act(route, payload = {}) {
 
-      const pattern = (() => {
-        if (input.length <= 2) { // expect second parameter as 'options'
-          return objectify(route)
-        }
-        // expect second parameter as 'payload'
-        return Object.assign({}, objectify(route), payload)
-      })()
-
-      const { local } = options
-      const matchResult = (local ? pmLocal : pmAll).find(pattern)
+      if (!route) { throw new Error('route not specified') }
+      const pattern = ld.assign({}, objectify(route), payload)
+      const matchResult = (pattern.$local ? pmLocal : pmAll).find(pattern)
       if (!matchResult) {
-        // console.log('>>>>> pattern:')
-        // console.log(pattern)
-        // console.log('>>>>> all patterns:')
-        // console.log(pmAll.list({}))
-        throw new Error(`route ${JSON.stringify(route)} not found`)
+        throw new Error(`route ${JSON.stringify(route)}: not found`)
       }
 
       const { transport, handler } = matchResult
-      if (transport === 'local') {
-        return await handler(pattern)
-      }
-      const remoteHandler = this.remote[transport].act
-      return await remoteHandler(...input)
-    },
+      const executor = transport === 'local' ? handler : this.remote[transport].act
 
-    // same as .act, but without options
-    async act(route, data) {
-      return this.actCustom(route, data, {})
+      // setup ttl and execute payload
+      const timeout = pattern.$timeout || config.timeout
+      const timer = setTimeout(() => {
+        throw new Error(`route ${JSON.stringify(route)}: timeout after ${timeout}ms`)
+      }, timeout)
+      const result = await executor(pattern)
+      clearTimeout(timer)
+      return result
     },
 
     // load plugin, module etc
@@ -87,7 +82,7 @@ module.exports = () => {
         default: // plugin with business logic
           if (name && routes) {
             this.routes[name] = this.routes[name] || {}
-            Object.assign(this.routes[name], routes)
+            ld.assign(this.routes[name], routes)
           }
       }
     },
