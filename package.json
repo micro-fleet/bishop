@@ -13,10 +13,14 @@
   "author": "Andrey Afoninsky",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/afoninsky/humber/issues"
+    "url": "https://github.com/afoninsky/bishop/issues"
   },
-  "homepage": "https://github.com/afoninsky/humber#readme",
+  "scripts": {
+    "test": "eslint src && node --harmony_async_await node_modules/.bin/ava"
+  },
+  "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
+    "ava": "^0.16.0",
     "eslint": "^3.9.1",
     "eslint-plugin-output-todo-comments": "0.0.6"
   },
@@ -28,5 +32,19 @@
   "peerDependencies": {
     "benchmark": "^2.1.2",
     "seneca": "^3.2.2"
+  },
+  "ava": {
+    "verbose": true,
+    "source": [
+      "**/*js"
+    ],
+    "require": [
+      "./test/_preload.js"
+    ]
+  },
+  "nyc": {
+    "include": [
+      "src/*.js"
+    ]
   }
 }
