@@ -7,9 +7,7 @@ const defaultConfig = {
 }
 
 module.exports = (_config = {}) => {
-  const pmAll = patrun({ gex:true })
-  const pmLocal = patrun({ gex:true })
-
+  const pm = patrun({ gex:true })
   const config = ld.assign({}, defaultConfig, _config)
 
   return {
@@ -22,40 +20,37 @@ module.exports = (_config = {}) => {
     remote: {},
 
     // append handler for route (local or remote)
-    // .add(route, function)
-    // .add(route, 'transportname')
-    add(_route, handler) {
-      const route = objectify(_route)
-      const transport = ld.isFunction(handler) ? 'local' : handler
-
-      const options = { transport }
-      if (transport === 'local') {
-        options.handler = handler
-        pmLocal.add(route, options)
-      }
-      pmAll.add(route, options)
+    // .add(route, function) // execute local payload
+    // .add(route, 'transportname') // execute payload using transport
+    add(_pattern, handler) {
+      const $type = ld.isFunction(handler) ? 'local' : handler
+      const pattern = ld.assign({} , objectify(_pattern), { $type })
+      pm.add(pattern, {
+        type: $type,
+        handler: handler
+      })
     },
 
     // expect options as last parameter
     // $timeout - redefine global request timeout
-    // $local - search only in local patterns, dont request remote connections
+    // $type - search only in specified transports (default: 'local')
     // $nowait - resolve then message is sent, dont wait for answer {not implemented}
-    async act(route, payload = {}) {
+    async act(_pattern, payload = {}) {
 
-      if (!route) { throw new Error('route not specified') }
-      const pattern = ld.assign({}, objectify(route), payload)
-      const matchResult = (pattern.$local ? pmLocal : pmAll).find(pattern)
+      if (!_pattern) { throw new Error('pattern not specified') }
+      const pattern = ld.assign({}, objectify(_pattern), payload)
+      const matchResult = pm.find(pattern)
       if (!matchResult) {
-        throw new Error(`route ${JSON.stringify(route)}: not found`)
+        throw new Error(`pattern not found: ${JSON.stringify(pattern)}`)
       }
 
-      const { transport, handler } = matchResult
-      const executor = transport === 'local' ? handler : this.remote[transport].act
+      const { type, handler } = matchResult
+      const executor = type === 'local' ? handler : this.remote[type].act
 
       // setup ttl and execute payload
       const timeout = pattern.$timeout || config.timeout
       const timer = setTimeout(() => {
-        throw new Error(`route ${JSON.stringify(route)}: timeout after ${timeout}ms`)
+        throw new Error(`pattern timeout after ${timeout}ms: ${JSON.stringify(pattern)}`)
       }, timeout)
       const result = await executor(pattern)
       clearTimeout(timer)
@@ -63,19 +58,20 @@ module.exports = (_config = {}) => {
     },
 
     // load plugin, module etc
-    async use(input, options) {
-      const plugin = typeof input === 'string' ? require(input) : input
-      if (!ld.isFunction(plugin)) { throw new Error('.use: function expected') }
+    async use(...input) {
+      const [ path, ...params ] = input
+      const plugin = ld.isString(path) ? require(path) : path
+      if (!ld.isFunction(plugin)) { throw new Error(`unable to load plugin: function expected, but ${plugin} found`) }
 
-      const data = await plugin(this, options)
+      const data = await plugin(this, ...params)
+      if (!data) { return } // this plugin dont return any suitable data
 
-      if (!data) { return } // no data returned
       const { name, routes } = data
 
       switch (data.type) {
 
         case 'remote': // transport connection
-          if (!name) { throw new Error('.use: remote plugins should contain names') }
+          if (!name) { throw new Error('remote plugins should contain names') }
           this.remote[name] = data
           break
 
@@ -85,11 +81,7 @@ module.exports = (_config = {}) => {
             ld.assign(this.routes[name], routes)
           }
       }
-    },
-
-    // listen(name, options) {
-    //   //
-    // }
+    }
 
   }
 }
