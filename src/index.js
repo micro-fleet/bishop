@@ -1,6 +1,8 @@
 const patrun = require('patrun')
 const ld = require('lodash')
 const { objectify } = require('./utils')
+const Promise = require('bluebird')
+
 
 const defaultConfig = {
   timeout: 500
@@ -54,19 +56,10 @@ module.exports = (_config = {}) => {
 
       // setup ttl and execute payload
       const timeout = pattern.$timeout || config.timeout
-      const timer = setTimeout(() => {
+      return Promise.resolve(executor(pattern)).timeout(timeout)
+      .catch(Promise.TimeoutError, () => {
         throw new Error(`pattern timeout after ${timeout}ms: ${JSON.stringify(pattern)}`)
-      }, timeout)
-
-      let result
-      try {
-        result = await executor(pattern)
-        clearTimeout(timer)
-      } catch (err) {
-        clearTimeout(timer)
-        throw err
-      }
-      return result
+      })
     },
 
     // load plugin, module etc
