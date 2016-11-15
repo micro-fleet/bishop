@@ -1,10 +1,10 @@
 {
   "name": "bishop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Microservices Framework for Node.js",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "eslint src && node --harmony_async_await node_modules/.bin/ava"
   },
   "repository": {
     "type": "git",
@@ -14,9 +14,6 @@
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/afoninsky/bishop/issues"
-  },
-  "scripts": {
-    "test": "eslint src && node --harmony_async_await node_modules/.bin/ava"
   },
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
