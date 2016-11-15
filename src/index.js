@@ -24,17 +24,22 @@ module.exports = (_config = {}) => {
     // .add(route, 'transportname') // execute payload using transport
     add(_pattern, handler) {
       const $type = ld.isFunction(handler) ? 'local' : handler
-      const pattern = ld.assign({} , objectify(_pattern), { $type })
+      const pattern = objectify(_pattern)
+
       pm.add(pattern, {
         type: $type,
         handler: handler
       })
     },
 
+    remove(_pattern) {
+      pm.remove(objectify(_pattern))
+    },
+
     // expect options as last parameter
     // $timeout - redefine global request timeout
-    // $type - search only in specified transports (default: 'local')
-    // $nowait - resolve then message is sent, dont wait for answer {not implemented}
+    // 2do: $type - search only in specified transports (default: 'local')
+    // 2do: $nowait - resolve then message is sent, dont wait for answer {not implemented}
     async act(_pattern, payload = {}) {
 
       if (!_pattern) { throw new Error('pattern not specified') }
@@ -52,8 +57,15 @@ module.exports = (_config = {}) => {
       const timer = setTimeout(() => {
         throw new Error(`pattern timeout after ${timeout}ms: ${JSON.stringify(pattern)}`)
       }, timeout)
-      const result = await executor(pattern)
-      clearTimeout(timer)
+
+      let result
+      try {
+        result = await executor(pattern)
+        clearTimeout(timer)
+      } catch (err) {
+        clearTimeout(timer)
+        throw err
+      }
       return result
     },
 
