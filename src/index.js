@@ -64,7 +64,10 @@ const Bishop = (_config = {}) => {
       // in case of transports - they should respect $nowait flag and emit errors manually
       // all errors durning execution progress should be emitted as async using `this.events` eventemitter
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
-        method(...input).catch(err => this.events.emit('error', err))
+        Promise.resolve(method(...input)).catch(err => {
+          err.pattern = pattern
+          this.events.emit('error', err)
+        })
         return Promise.resolve()
       }: method
 
@@ -106,6 +109,7 @@ const Bishop = (_config = {}) => {
             ld.assign(this.routes[name], routes)
           }
       }
+      return data
     }
 
   }

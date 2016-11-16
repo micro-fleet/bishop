@@ -26,10 +26,6 @@
     "bluebird": "^3.4.6",
     "patrun": "^0.5.1"
   },
-  "peerDependencies": {
-    "benchmark": "^2.1.2",
-    "seneca": "^3.2.2"
-  },
   "ava": {
     "verbose": true,
     "source": [
