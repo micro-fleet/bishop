@@ -4,11 +4,12 @@
   "description": "A Microservices Framework for Node.js",
   "main": "src/index.js",
   "scripts": {
-    "test": "eslint src && node --harmony_async_await node_modules/.bin/ava"
+    "test": "eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
+    "coverage": "nyc report --reporter=html && open coverage/index.html"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/afoninsky/humber.git"
+    "url": "git+https://github.com/afoninsky/bishop.git"
   },
   "author": "Andrey Afoninsky",
   "license": "MIT",
@@ -18,8 +19,11 @@
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
     "ava": "^0.16.0",
+    "babel-core": "^6.18.2",
+    "babel-plugin-transform-async-to-generator": "^6.16.0",
     "eslint": "^3.9.1",
-    "eslint-plugin-output-todo-comments": "0.0.6"
+    "eslint-plugin-output-todo-comments": "0.0.6",
+    "nyc": "^9.0.1"
   },
   "dependencies": {
     "amqp-coffee": "^0.1.28",
@@ -32,12 +36,28 @@
       "**/*js"
     ],
     "require": [
+      "babel-core/register",
       "./test/_preload.js"
+    ]
+  },
+  "babel": {
+    "presets": [
+      "es2015"
+    ],
+    "plugins": [
+      "transform-async-to-generator",
+      [
+        "transform-runtime",
+        {
+          "polyfill": false,
+          "regenerator": true
+        }
+      ]
     ]
   },
   "nyc": {
     "include": [
-      "src/*.js"
+      "src/**.js"
     ]
   }
 }

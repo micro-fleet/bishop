@@ -3,3 +3,5 @@ node_modules/
 *.log
 yarn.lock
 debug/
+coverage/
+.nyc_output/
