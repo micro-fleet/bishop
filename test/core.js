@@ -58,7 +58,13 @@ test('$timeout behaviour', async t => {
 
 test('$nowait behaviour', async t => {
   const timeout = 10
-  const bishop = require(`${process.env.PWD}/src`)()
+  let firedError
+  const bishop = require(`${process.env.PWD}/src`)({
+    terminateOn: err => {
+      firedError = err
+      return true
+    }
+  })
   bishop.add('role:test,act:nowait-success', () => { return 'finished' } )
   const res = await bishop.act('role:test,act:nowait-success,$nowait:true')
   t.falsy(res)
@@ -68,12 +74,9 @@ test('$nowait behaviour', async t => {
   }))
 
   const res2 = await bishop.act('role:test,act:nowait-fail,$nowait:true')
-  bishop.events.on('error', err => {
-    t.pass()
-    t.is(err.message, 'delayed fail')
-  })
   t.falsy(res2)
   await Promise.delay(timeout + 10)
+  t.is(firedError.message, 'delayed fail')
 })
 
 // 2do: implement after network implementation

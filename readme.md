@@ -1,0 +1,7 @@
+- overview
+- difference between seneca, speed tests
+- usage examples
+- configuration options
+- error handling
+- logging
+- remote transports
