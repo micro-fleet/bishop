@@ -6,7 +6,10 @@ const Promise = require('bluebird')
 
 
 const defaultConfig = {
-  timeout: 500
+  timeout: 500,
+  log: { // https://www.npmjs.com/package/pino#pinoopts-stream
+    name: 'bishop'
+  }
 }
 
 const Bishop = (_config = {}) => {
@@ -14,8 +17,11 @@ const Bishop = (_config = {}) => {
   const pm = patrun({ gex:true })
   const pmLocal = patrun({ gex:true })
   const config = ld.assign({}, defaultConfig, _config)
+  const logger = ld.isPlainObject(config.log) ? require('pino')(config.log) : config.log
 
   return {
+
+    log: logger,
 
     events: new EventEmitter(),
 
