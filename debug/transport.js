@@ -1,31 +1,23 @@
-const humblerServer = require('../src')()
-const humblerClient = require('../src')()
+const server = require('../src')()
+const client = require('../src')()
 
-humblerServer.add({ role: 'test', command: 'echo' }, data => data)
-humblerServer.add({ role: 'test', command: 'remote' }, 'dummy')
-//
-// humblerServer.listen('dummy', {
-//   some: 'options'
-// })
+server.add({ role: 'test', command: 'echo' }, data => data)
+client.add({ role: 'test' }, 'http-client')
 
 ;(async () => {
   try {
-    await humblerServer.use('../dummy-transport', {
-      name: 'dummy',
-      init: 'options'
+    await server.use('../src/transports/http', {
+      name: 'http-server'
     })
-    const result = await humblerServer.act({ role: 'test', command: 'remote' })
+    await client.use('../src/transports/http', {
+      name: 'http-client'
+    })
+    await server.listen()
+    const result = await client.act({ role: 'test', command: 'echo' }, { some: 'else'})
     console.log('answer:')
     console.log(result)
+    await server.close()
   } catch (err) {
     console.log(err)
   }
-
-  // const echoResult = await humbler.act({ role: 'test', command: 'echo' }, { echo: 'meow' })
-  // const stringResult = await humbler.act({ role: 'test', command: 'string' })
-  // const bufferResult = await humbler.act({ role: 'test', command: 'buffer' })
-  //
-  // console.log('echo:', echoResult)
-  // console.log('string:', stringResult)
-  // console.log('buffer:', bufferResult.toString())
 })()

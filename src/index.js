@@ -45,6 +45,8 @@ const Bishop = (_config = {}) => {
 
   return {
 
+    timeout: config.timeout,
+
     // default logger for bishop instances
     log: logger,
 
@@ -52,7 +54,7 @@ const Bishop = (_config = {}) => {
     routes: {},
 
     // loaded remote connectors for further usage
-    remote: {},
+    transport: {},
 
     // append handler for route (local or remote)
     // .add(route, function) // execute local payload
@@ -89,7 +91,16 @@ const Bishop = (_config = {}) => {
       const { type, handler } = matchResult
       const isLocalPattern = type === 'local'
 
-      const method = isLocalPattern ? handler : this.remote[type].act // wrap with network call
+      let method
+      if (isLocalPattern) {
+        method = handler
+      } else {
+        // wrap with network call
+        if (!this.transport[type] || !this.transport[type].send) {
+          throw new Error(`transport "${type}" not exists`)
+        }
+        method = this.transport[type].send
+      }
 
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
         Promise.resolve(method(...input)).catch(err => {
@@ -106,7 +117,7 @@ const Bishop = (_config = {}) => {
         })
       }
 
-      const timeout = pattern.$timeout || config.timeout
+      const timeout = pattern.$timeout || this.timeout
 
       if (!timeout) {
         return executor(pattern)
@@ -132,9 +143,9 @@ const Bishop = (_config = {}) => {
 
       switch (data.type) {
 
-        case 'remote': // transport connection
-          if (!name) { throw new Error('remote plugins should contain names') }
-          this.remote[name] = data
+        case 'transport': // transport connection
+          if (!name) { throw new Error('transport plugins should contain names') }
+          this.transport[name] = data
           break
 
         default: // plugin with business logic
@@ -144,6 +155,20 @@ const Bishop = (_config = {}) => {
           }
       }
       return data
+    },
+
+    // listen all transports
+    async listen() {
+      for (let name in this.transport) {
+        await this.transport[name].listen()
+      }
+    },
+
+    // disconnect from all transports
+    async close() {
+      for (let name in this.transport) {
+        await this.transport[name].close()
+      }
     }
 
   }
