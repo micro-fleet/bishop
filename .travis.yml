@@ -1,0 +1,16 @@
+language: node_js
+node_js:
+- node
+- '7'
+- '6'
+- '5'
+- '4'
+install:
+  - yarn
+  - yarn legacy
+script:
+  - yarn test
+after_success:
+  - ./node_modules/.bin/nyc report --reporter=text-lcov | ./node_modules/.bin/coveralls
+cache:
+  yarn: true
