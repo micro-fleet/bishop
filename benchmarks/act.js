@@ -21,7 +21,7 @@ suite.add('seneca#act', {
   }
 })
 
-suite.add('humber#act', {
+suite.add('bishop#act', {
   defer: true,
   fn: deferred => {
     humber.act(route).then(() => deferred.resolve())

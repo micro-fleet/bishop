@@ -1,4 +1,4 @@
-const patrun = require('patrun')
+const bloomrun = require('bloomrun')
 const ld = require('lodash')
 const { objectify } = require('./utils')
 const Promise = require('bluebird')
@@ -6,6 +6,9 @@ const Promise = require('bluebird')
 
 // default options for bishop instance
 const defaultConfig = {
+  //  if set to insertion, it will try to match entries in insertion order
+  //  if set to depth, it will try to match entries with the most properties first
+  matchOrder: 'insertion', // insertion, depth
   // default timeout for pattern execution in ms
   timeout: 500,
   // handle only user errors by default and fall down on others
@@ -29,8 +32,8 @@ const Bishop = (_config = {}) => {
     : config.log
 
   // create two pattern matchers: matcher with all patterns (local + network), and local only
-  const pm = patrun({ gex:true })
-  const pmLocal = patrun({ gex:true })
+  const pm = bloomrun({ indexing: config.matchOrder })
+  const pmLocal = bloomrun({ indexing: config.matchOrder })
 
   // check if error should be passed to caller instead of throwing
   const errorHandler = ld.isFunction(config.terminateOn) ? config.terminateOn : err => {
@@ -83,7 +86,7 @@ const Bishop = (_config = {}) => {
       if (!_pattern) { throw new Error('pattern not specified') }
       const pattern = ld.assign({}, objectify(_pattern), payload)
 
-      const matchResult = (pattern.$local ? pmLocal : pm).find(pattern)
+      const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern)
       if (!matchResult) {
         throw new Error(`pattern not found: ${JSON.stringify(pattern)}`)
       }

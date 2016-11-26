@@ -27,8 +27,8 @@
   },
   "dependencies": {
     "amqp-coffee": "^0.1.28",
+    "bloomrun": "^3.0.1",
     "bluebird": "^3.4.6",
-    "patrun": "^0.5.1",
     "pino": "^3.0.1",
     "request": "^2.79.0",
     "request-promise": "^4.1.1"
