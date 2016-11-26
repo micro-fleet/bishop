@@ -6,7 +6,8 @@
   "scripts": {
     "test": "eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
     "coverage": "nyc report --reporter=html && open coverage/index.html",
-    "legacy": "babel -s inline -d legacy src"
+    "legacy": "babel -s inline -d legacy src",
+    "deploy": "yarn legacy && yarn test && yarn publish"
   },
   "repository": {
     "type": "git",
