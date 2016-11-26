@@ -2,7 +2,7 @@ const { test } = require('ava')
 const Promise = require('bluebird')
 
 test('emit local patterns', async t => {
-  const bishop = require(`${process.env.PWD}/src`)()
+  const bishop = require(process.env.PWD)()
   bishop.add({ role: 'test', act: 'local1' }, () => { return 'local1' })
   t.is(await bishop.act('role: test, act: nosuch', { act: 'local1'}), 'local1')
 
@@ -13,7 +13,7 @@ test('emit local patterns', async t => {
 })
 
 test('remove patterns', async t => {
-  const bishop = require(`${process.env.PWD}/src`)()
+  const bishop = require(process.env.PWD)()
   const pattern = 'role:test,act:remove'
   bishop.add(pattern, () => { return 'ok' })
   t.is(await bishop.act(pattern), 'ok')
@@ -24,7 +24,7 @@ test('remove patterns', async t => {
 
 
 test('use plugin with patterns', async t => {
-  const bishop = require(`${process.env.PWD}/src`)()
+  const bishop = require(process.env.PWD)()
   const plugin = (instance, arg1, arg2) => {
     t.is(instance, bishop)
     t.is(arg1, 'arg1')
@@ -46,7 +46,7 @@ test('use plugin with patterns', async t => {
 
 test('$timeout behaviour', async t => {
   const timeout = 100
-  const bishop = require(`${process.env.PWD}/src`)({ timeout })
+  const bishop = require(process.env.PWD)({ timeout })
   bishop.add('role:test,act:timeout', async message => {
     await Promise.delay(message.delay)
     return 'success'
@@ -58,10 +58,10 @@ test('$timeout behaviour', async t => {
 
 test('$nowait behaviour', async t => {
   const timeout = 10
-  let firedError
-  const bishop = require(`${process.env.PWD}/src`)({
+  const firedError = { message: '' }
+  const bishop = require(process.env.PWD)({
     terminateOn: err => {
-      firedError = err
+      firedError.message = err.message
       return true
     }
   })
@@ -75,13 +75,13 @@ test('$nowait behaviour', async t => {
 
   const res2 = await bishop.act('role:test,act:nowait-fail,$nowait:true')
   t.falsy(res2)
-  await Promise.delay(timeout + 10)
+  await Promise.delay(timeout + 100)
   t.is(firedError.message, 'delayed fail')
 })
 
 // 2do: implement after network implementation
 test.skip('$local behaviour', async t => {
-  const bishop = require(`${process.env.PWD}/src`)()
+  const bishop = require(process.env.PWD)()
   bishop.add('role:test,act:local-local', () => 'rer')
   bishop.add('role:test,act:local-remote', 'somepluginname')
 

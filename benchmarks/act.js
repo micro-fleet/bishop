@@ -4,7 +4,7 @@ const Benchmark = require('benchmark')
 const suite = new Benchmark.Suite
 
 const seneca = require('seneca')()
-const humber = require('../src')()
+const humber = require('..')()
 
 const route = {test: 'route'}
 seneca.add(route, (msg, done) => {

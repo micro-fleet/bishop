@@ -2,10 +2,11 @@
   "name": "bishop",
   "version": "1.0.3",
   "description": "A Microservices Framework for Node.js",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
     "test": "eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
-    "coverage": "nyc report --reporter=html && open coverage/index.html"
+    "coverage": "nyc report --reporter=html && open coverage/index.html",
+    "legacy": "babel -s inline -d legacy src"
   },
   "repository": {
     "type": "git",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "ava": "^0.16.0",
     "babel-core": "^6.18.2",
+    "babel-cli": "^6.18.0",
     "babel-plugin-transform-async-to-generator": "^6.16.0",
     "eslint": "^3.9.1",
     "eslint-plugin-output-todo-comments": "0.0.6",

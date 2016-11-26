@@ -5,4 +5,3 @@ yarn.lock
 debug/
 coverage/
 .nyc_output/
-legacy/
