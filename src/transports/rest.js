@@ -7,25 +7,38 @@ const Koa = require('koa')
 const json = require('koa-json')
 
 const defaultOptions = {
-  name: 'rest',
-  type: 'http',                     // http, https
-  host: '127.0.0.1',
-  port: 9000,
-  timeout: null,
-  defaultRoute: '/bishop',
-  routes: {
+  name: 'rest',                         // client/server: transport name/alias
+  address: 'http://127.0.0.1:9000',     // client: transport endpoint
+  listenPort: 9000,                     // server: listen incoming requests on port
+  timeout: null,                        // client/server: will take from default seneca if not specified
+  defaultRoute: '/bishop',              // client/server: default route if routes not set
+  routes: {                             // client/server: human-friendly url pattern translation
     // '/:role/:get': 'get',
     // '/:role/:cmd': 'post',
     // '/:role/:unset': 'delete',
     // '/:role/:set': 'put'
   },
-  routeInterpolatePattern: /:([a-z0-9]+)/g // extract only alphanumeric
+  request: {},                          // client: request-specific additional options: https://github.com/request/request#requestoptions-callback
+  defaultRouteMethod: 'POST',           // client/server: preferred communication method, please dont change
+  routeInterpolatePattern: /:([a-z0-9]+)/g // client/server: rule to extract tokens from urls, please dont change
 }
 
 module.exports = (bishop, options = {}) => {
 
   const config = ld.defaultsDeep({}, options, defaultOptions)
   const defaultTimeout = config.timeout || bishop.timeout // use own default timeout, or take from seneca
+
+  const localPatternFinder = message => {
+    const wrappedMessage = ld.assign({}, message, {
+      $local: true,                                       // always serach in local patterns only
+      $timeout: message.$timeout || defaultTimeout        // emit messages with custom timeout
+    })
+    if (message.$nowait) {
+      bishop.act(wrappedMessage)
+      return { success: true }
+    }
+    return bishop.act(wrappedMessage)
+  }
 
   // parse routes into local pattern matcher
   const routesMatcher = bloomrun()
@@ -45,10 +58,10 @@ module.exports = (bishop, options = {}) => {
 
   // setup http client
   let server
-  const client = request.defaults({
-    baseUrl: `${config.type}://${config.host}:${config.port}`,
+  const client = request.defaults(ld.defaults({}, {
+    baseUrl: config.address,
     json: true
-  })
+  }, config.request))
 
   return {
     name: config.name,
@@ -64,12 +77,11 @@ module.exports = (bishop, options = {}) => {
       if (!rest) {
         return client({
           uri: config.defaultRoute,
-          method: 'POST',
+          method: config.defaultRouteMethod,
           body: message,
           timeout
         })
       }
-
       // we have route and method - will send 'like a rest'
       const options = {
         uri: rest.urlTemplate(message),
@@ -101,30 +113,18 @@ module.exports = (bishop, options = {}) => {
 
       // default transport route
       router.post(config.defaultRoute, async ctx => {
-        // 2do: if message.$nowait - dont send answer
         const message = ctx.request.body
-        ctx.body = await bishop.act(message, {
-          $local: true,                       // always serach in local patterns only
-          $timeout: message.$timeout || defaultTimeout  // emit messages with custom timeout
-        })
+        ctx.body = await localPatternFinder(message)
       })
 
       // rest routes
       for (const route in config.routes) {
         const method = config.routes[route].toLowerCase()
         router[method](route, async ctx => {
-          const message = ld.assign({},
-            ctx.request.body || {},
-            ctx.query || {},
-            ctx.params || {}
-          )
-          ctx.body = await bishop.act(message, {
-            $local: true,
-            $timeout: message.$timeout || defaultTimeout
-          })
+          const message = ld.assign({}, ctx.request.body || {}, ctx.query || {}, ctx.params || {})
+          ctx.body = await localPatternFinder(message)
         })
       }
-
 
       const app = new Koa()
       app
@@ -133,13 +133,12 @@ module.exports = (bishop, options = {}) => {
         .use(router.routes())
         .use(router.allowedMethods())
 
-
-      server = app.listen(config.port)
+      server = app.listen(config.listenPort)
     },
 
     // stop listen incoming requests
     close: () => {
-      server.close()
+      server && server.close()
     }
   }
 }

@@ -167,7 +167,7 @@ const Bishop = (_config = {}) => {
 
     // disconnect from all remote instances
     async disconnect() {
-      await runMethodsParallel(this.transport, 'connect')
+      await runMethodsParallel(this.transport, 'disconnect')
     },
 
     // listen all transports
