@@ -147,7 +147,7 @@ const Bishop = (_config = {}) => {
       switch (data.type) {
 
         case 'transport': // transport connection
-          if (!name) { throw new Error('transport plugins should contain names') }
+          if (!name) { throw new Error('transport plugins should return .name property') }
           this.transport[name] = data
           break
 
@@ -162,6 +162,7 @@ const Bishop = (_config = {}) => {
 
     // listen all transports
     async listen() {
+      // 2do: run listen in parallel
       for (let name in this.transport) {
         await this.transport[name].listen()
       }
@@ -169,6 +170,7 @@ const Bishop = (_config = {}) => {
 
     // disconnect from all transports
     async close() {
+      // 2do: run close in parallel
       for (let name in this.transport) {
         await this.transport[name].close()
       }

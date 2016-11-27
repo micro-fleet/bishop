@@ -1,5 +1,3 @@
-const Promise = require('bluebird')
-const http = require('http')
 const request = require('request-promise')
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
@@ -16,10 +14,10 @@ const defaultOptions = {
   timeout: null,
   defaultRoute: '/bishop',
   routes: {
-    '/:role/:get': 'get',
-    '/:role/:cmd': 'post',
-    '/:role/:unset': 'delete',
-    '/:role/:set': 'put'
+    // '/:role/:get': 'get',
+    // '/:role/:cmd': 'post',
+    // '/:role/:unset': 'delete',
+    // '/:role/:set': 'put'
   },
   routeInterpolatePattern: /:([a-z0-9]+)/g // extract only alphanumeric
 }
@@ -27,7 +25,7 @@ const defaultOptions = {
 module.exports = (bishop, options = {}) => {
 
   const config = ld.defaultsDeep({}, options, defaultOptions)
-  const timeout = config.timeout || bishop.timeout // use own default timeout, or take from seneca
+  const defaultTimeout = config.timeout || bishop.timeout // use own default timeout, or take from seneca
 
   // parse routes into local pattern matcher
   const routesMatcher = bloomrun()
@@ -53,14 +51,14 @@ module.exports = (bishop, options = {}) => {
   })
 
   return {
-    name: options.name,
+    name: config.name,
     type: 'transport',
     // connect: () => {}, // no need to connect: lazy connection will be performed on each request
     // disconnect: () => {},
 
     // request remote system and return result as promise
     send: message => {
-      const timeout = (message.$timeout || timeout) + 10
+      const timeout = (message.$timeout || defaultTimeout) + 10
       const rest = routesMatcher.lookup(message)
       // no route matches found for rest api - will send to default route
       if (!rest) {
@@ -107,25 +105,41 @@ module.exports = (bishop, options = {}) => {
         const message = ctx.request.body
         ctx.body = await bishop.act(message, {
           $local: true,                       // always serach in local patterns only
-          $timeout: message.$timeout || timeout  // emit messages with custom timeout
+          $timeout: message.$timeout || defaultTimeout  // emit messages with custom timeout
         })
       })
 
-      // 2do: rest routes
+      // rest routes
+      for (const route in config.routes) {
+        const method = config.routes[route].toLowerCase()
+        router[method](route, async ctx => {
+          const message = ld.assign({},
+            ctx.request.body || {},
+            ctx.query || {},
+            ctx.params || {}
+          )
+          ctx.body = await bishop.act(message, {
+            $local: true,
+            $timeout: message.$timeout || defaultTimeout
+          })
+        })
+      }
 
-      server = new Koa()
-      server
+
+      const app = new Koa()
+      app
         .use(json({ pretty: false, param: 'pretty' })) // beautify json on '?pretty' parameter
         .use(parseBody()) // extract body variables into req.body
         .use(router.routes())
         .use(router.allowedMethods())
 
-      return Promise.fromCallback(callback => server.listen(config.port, callback))
+
+      server = app.listen(config.port)
     },
 
     // stop listen incoming requests
     close: () => {
-      return Promise.fromCallback(callback => server.close(callback))
+      server.close()
     }
   }
 }
