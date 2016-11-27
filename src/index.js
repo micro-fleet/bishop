@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify } = require('./utils')
+const { objectify, runMethodsParallel } = require('./utils')
 const Promise = require('bluebird')
 
 
@@ -160,22 +160,25 @@ const Bishop = (_config = {}) => {
       return data
     },
 
+    // connect to all remote instances
+    async connect() {
+      await runMethodsParallel(this.transport, 'connect')
+    },
+
+    // disconnect from all remote instances
+    async disconnect() {
+      await runMethodsParallel(this.transport, 'connect')
+    },
+
     // listen all transports
     async listen() {
-      // 2do: run listen in parallel
-      for (let name in this.transport) {
-        await this.transport[name].listen()
-      }
+      await runMethodsParallel(this.transport, 'listen')
     },
 
     // disconnect from all transports
     async close() {
-      // 2do: run close in parallel
-      for (let name in this.transport) {
-        await this.transport[name].close()
-      }
+      await runMethodsParallel(this.transport, 'close')
     }
-
   }
 }
 

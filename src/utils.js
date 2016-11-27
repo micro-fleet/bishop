@@ -1,4 +1,5 @@
 const ld = require('lodash')
+const Promise = require('bluebird')
 
 module.exports = {
 
@@ -12,19 +13,12 @@ module.exports = {
       return prev
     }, {})
     return ld.extend(obj, extend)
-  }
-  //
-  // defaults(input) {
-  //   const { data, method, defaults } = input
-  //   if (typeof data === 'function') {
-  //     return {
-  //       config: Object.assign({}, defaults),
-  //       method: config
-  //     }
-  //   }
-  //   return {
-  //     config: Object.assign(config, defaults),
-  //     method: method
-  //   }
-  // }
+  },
+
+  async runMethodsParallel(object, methodName) {
+    await Promise.map(ld.keys(object), name => {
+      const method = object[name][methodName]
+      return method && method()
+    })
+  },
 }
