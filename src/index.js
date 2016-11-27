@@ -38,7 +38,7 @@ const Bishop = (_config = {}) => {
   // check if error should be passed to caller instead of throwing
   const errorHandler = ld.isFunction(config.terminateOn) ? config.terminateOn : err => {
     if (config.terminateOn.includes(err.name)) {
-      this.log.fatal(err)
+      logger.fatal(err)
       process.exit(1)
     }
     // falsy - handle error (return to sender, emit message etc)
@@ -82,7 +82,6 @@ const Bishop = (_config = {}) => {
     // $local - search only in local patterns, skip remote transporting
     // $nowait - resolve immediately (in case of local patters), or then message is sent (in case of transports)
     async act(_pattern, payload = {}) {
-
       if (!_pattern) { throw new Error('pattern not specified') }
       const pattern = ld.assign({}, objectify(_pattern), payload)
 
@@ -113,11 +112,16 @@ const Bishop = (_config = {}) => {
           if (!muteError) { this.log.error(err) }
         })
         return Promise.resolve()
-      }: (...input) => {
-        return Promise.resolve(method(...input)).catch(err => {
+      }: async (...input) => {
+        let result
+        try {
+          input.push('$wtf') // 2do: wtf - test 'emit pattern' from local.js is failing without it
+          result = await method(...input)
+        } catch (err) {
           const muteError = errorHandler(err)
           if (!muteError) { throw err }
-        })
+        }
+        return result
       }
 
       const timeout = pattern.$timeout || this.timeout

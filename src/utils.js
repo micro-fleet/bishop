@@ -9,7 +9,9 @@ module.exports = {
 
     const obj = input.split(',').reduce((prev, cur) => {
       const [ key, value ] = cur.trim().split(':')
-      prev[key.trim()] = value.trim()
+      if (!value) { throw new Error(`route "${input}" is not valid`)}
+      const trimmedValue = value.trim()
+      prev[key.trim()] = trimmedValue[0] === '/' ?  new RegExp(trimmedValue) : trimmedValue
       return prev
     }, {})
     return ld.extend(obj, extend)

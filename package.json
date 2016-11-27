@@ -4,10 +4,11 @@
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
-    "test": "eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
+    "test": "npm run legacy && eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
+    "debug": "npm run legacy && ava --",
     "coverage": "nyc report --reporter=html && open coverage/index.html",
     "legacy": "babel -s inline -d legacy src",
-    "deploy": "yarn legacy && yarn test && yarn publish"
+    "deploy": "npm test && npm publish"
   },
   "repository": {
     "type": "git",
@@ -45,10 +46,6 @@
     "verbose": true,
     "source": [
       "**/*js"
-    ],
-    "require": [
-      "babel-core/register",
-      "./test/_preload.js"
     ]
   },
   "babel": {
@@ -68,7 +65,8 @@
   },
   "nyc": {
     "include": [
-      "src/**.js"
+      "src/**.js",
+      "legacy/**.js"
     ]
   }
 }
