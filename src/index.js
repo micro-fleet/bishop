@@ -1,14 +1,13 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, runMethodsParallel } = require('./utils')
+const { objectify, runMethodsParallel, isFunction } = require('./utils')
 const Promise = require('bluebird')
-
 
 // default options for bishop instance
 const defaultConfig = {
   //  if set to insertion, it will try to match entries in insertion order
   //  if set to depth, it will try to match entries with the most properties first
-  matchOrder: 'insertion', // insertion, depth
+  matchOrder: 'depth', // insertion, depth
   // default timeout for pattern execution in ms
   timeout: 500,
   // handle only user errors by default and fall down on others
@@ -36,7 +35,7 @@ const Bishop = (_config = {}) => {
   const pmLocal = bloomrun({ indexing: config.matchOrder })
 
   // check if error should be passed to caller instead of throwing
-  const errorHandler = ld.isFunction(config.terminateOn) ? config.terminateOn : err => {
+  const errorHandler = isFunction(config.terminateOn) ? config.terminateOn : err => {
     if (config.terminateOn.includes(err.name)) {
       logger.fatal(err)
       process.exit(1)
@@ -63,7 +62,7 @@ const Bishop = (_config = {}) => {
     // .add(route, function) // execute local payload
     // .add(route, 'transportname') // execute payload using transport
     add(_pattern, handler) {
-      const type = ld.isFunction(handler) ? 'local' : handler
+      const type = isFunction(handler) ? 'local' : handler
       const pattern = objectify(_pattern)
       const payload = { type, handler }
 
@@ -141,7 +140,7 @@ const Bishop = (_config = {}) => {
     async use(...input) {
       const [ path, ...params ] = input
       const plugin = ld.isString(path) ? require(path) : path
-      if (!ld.isFunction(plugin)) { throw new Error(`unable to load plugin: function expected, but ${plugin} found`) }
+      if (!isFunction(plugin)) { throw new Error('unable to load plugin: function expected, but not found') }
 
       const data = await plugin(this, ...params)
       if (!data) { return } // this plugin dont return any suitable data
