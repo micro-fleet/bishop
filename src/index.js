@@ -80,9 +80,10 @@ const Bishop = (_config = {}) => {
     // $timeout - redefine global request timeout for network requests
     // $local - search only in local patterns, skip remote transporting
     // $nowait - resolve immediately (in case of local patters), or then message is sent (in case of transports)
-    async act(_pattern, payload = {}) {
+    async act() {
+      const [ _pattern, ...payloads ] = arguments
       if (!_pattern) { throw new Error('pattern not specified') }
-      const pattern = ld.assign({}, objectify(_pattern), payload)
+      const pattern = ld.assign({}, objectify(_pattern), ...payloads)
 
       const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern)
       if (!matchResult) {
