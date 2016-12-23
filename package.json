@@ -30,17 +30,20 @@
     "eslint-plugin-output-todo-comments": "0.0.6",
     "nyc": "^9.0.1"
   },
-  "dependencies": {
+  "peerDependencies": {
     "amqp-coffee": "^0.1.28",
-    "bloomrun": "^3.0.1",
-    "bluebird": "^3.4.6",
     "koa": "next",
     "koa-bodyparser": "next",
     "koa-json": "next",
     "koa-router": "next",
-    "pino": "^3.0.1",
     "request": "^2.79.0",
-    "request-promise": "^4.1.1"
+    "request-promise": "^4.1.1",
+    "pino": "^3.0.1"
+  },
+  "dependencies": {
+    "bloomrun": "^3.0.1",
+    "bluebird": "^3.4.6",
+    "lodash": "^4.17.2"
   },
   "ava": {
     "verbose": true,
