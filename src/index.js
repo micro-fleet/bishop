@@ -11,6 +11,8 @@ const defaultConfig = {
   matchOrder: 'depth', // insertion, depth
   // default timeout for pattern execution in ms
   timeout: 500,
+  // emit warning on slow execution in ms
+  slowPatternTimeout: null,
   // handle only user errors by default and fall down on others
   // example: ReferenceError, RangeError, SyntaxError, TypeError, Error, ...
   // own sync function can be passed
@@ -120,6 +122,15 @@ const Bishop = (_config = {}) => {
         method = this.transport[type].send
       }
 
+      const slowPatternTimer = (() => {
+        if (config.slowPatternTimeout) {
+          return setTimeout(this.log.warn.bind(this.log), config.slowPatternTimeout, `pattern executing more than ${config.slowPatternTimeout}ms: ${JSON.stringify(pattern)}`)
+        }
+      })()
+      const clearSlowPatternTimer = () => {
+        if (slowPatternTimer) { clearTimeout(slowPatternTimer) }
+      }
+
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
         Promise.resolve(method(...input)).catch(err => {
           // in case of local pattern - resolve immediately and emit error on fail
@@ -127,6 +138,7 @@ const Bishop = (_config = {}) => {
           const muteError = errorHandler(err)
           if (!muteError) { this.log.error(err) }
         })
+        clearSlowPatternTimer()
         return Promise.resolve()
       }: async (...input) => {
         let result
@@ -137,6 +149,7 @@ const Bishop = (_config = {}) => {
           const muteError = errorHandler(err)
           if (!muteError) { throw err }
         }
+        clearSlowPatternTimer()
         return result
       }
 
