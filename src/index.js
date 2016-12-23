@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, runMethodsParallel, isFunction, createDebugger } = require('./utils')
+const { objectify, runMethodsParallel, isFunction, createDebugger, calcDelay } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -98,16 +98,21 @@ const Bishop = (_config = {}) => {
     },
 
     // $timeout - redefine global request timeout for network requests
+    // $slow - emit warning if pattern executing more than $slow ms
     // $local - search only in local patterns, skip remote transporting
     // $nowait - resolve immediately (in case of local patters), or then message is sent (in case of transports)
+    // $debug - append debug information into log output
     async act() {
+      const patternStarted = calcDelay(null, false)
       const [ _pattern, ...payloads ] = arguments
       if (!_pattern) { throw new Error('pattern not specified') }
       const pattern = ld.assign({}, objectify(_pattern), ...payloads)
-
+      const slowTimeout = config.slowPatternTimeout || pattern.$slow
+      const timeout = pattern.$timeout || this.timeout
       const isDebugEnabled = pattern.$debug || config.debug
       const debugStorage = {}
       const debug = createDebugger({ enabled: isDebugEnabled, logger }, debugStorage)
+      debug.track('finished')
       debug.push('source pattern found', pattern)
 
       const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern, {
@@ -137,17 +142,14 @@ const Bishop = (_config = {}) => {
         method = this.transport[type].send
       }
 
-      const slowPatternTimer = (() => {
-        const slowTimeout = config.slowPatternTimeout || pattern.$slowTimeout
+      const doPostOperations = () => {
         if (slowTimeout) {
-          return setTimeout(() => {
-            this.log.warn(`pattern executing more than ${slowTimeout}ms: ${JSON.stringify(pattern)}`)
-            debug.push('slow timeout warning emitted', slowTimeout)
-          }, slowTimeout)
+          const executionTime = calcDelay(patternStarted, false)
+          if (executionTime > slowTimeout) {
+            this.log.warn(`pattern executed in ${executionTime}ms: ${JSON.stringify(pattern)}`)
+          }
         }
-      })()
-      const clearSlowPatternTimer = () => {
-        if (slowPatternTimer) { clearTimeout(slowPatternTimer) }
+        debug.trackEnd('finished')
       }
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
         debug.push('local nowait behaviour selected')
@@ -157,9 +159,9 @@ const Bishop = (_config = {}) => {
           const muteError = errorHandler(err)
           if (!muteError) { this.log.error(err) }
         })
-        clearSlowPatternTimer()
         // append debugin information to empty response
         const response = isDebugEnabled ? debugStorage : undefined
+        doPostOperations()
         return Promise.resolve(response)
       }: async (...input) => {
         debug.track('pattern method run')
@@ -170,14 +172,12 @@ const Bishop = (_config = {}) => {
           debug.trackEnd('pattern method run', 'success')
         } catch (err) {
           const muteError = errorHandler(err)
-          debug.trackEnd('attern method run', `fail: ${err.message}, muted: ${muteError}`)
+          debug.trackEnd('pattern method run', `fail: ${err.message}, muted: ${muteError}`)
           if (!muteError) { throw err }
         }
-        clearSlowPatternTimer()
+        doPostOperations()
         return ld.assign(ld.isObject(result) ? result : { result }, debugStorage)
       }
-
-      const timeout = pattern.$timeout || this.timeout
 
       if (!timeout) {
         return executor(pattern)

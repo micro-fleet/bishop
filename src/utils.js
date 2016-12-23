@@ -1,7 +1,7 @@
 const ld = require('lodash')
 const Promise = require('bluebird')
 
-const countNanoSeconds = (offset, inNanoSeconds = true) => {
+const calcDelay = (offset, inNanoSeconds = true) => {
   const now = (() => {
     if (inNanoSeconds) {
       const [ seconds, nanoseconds ] = process.hrtime()
@@ -13,6 +13,8 @@ const countNanoSeconds = (offset, inNanoSeconds = true) => {
 }
 
 module.exports = {
+
+  calcDelay,
 
   // model:comments,target:resource,action:create => { model: 'comments', target: 'resource', action: 'create' }
   objectify(input, extend = {}) {
@@ -38,7 +40,7 @@ module.exports = {
       enabled: false,
       logger: null
     })
-    const start = countNanoSeconds()
+    const start = calcDelay()
     const isDebugDisabled = !config.enabled
     const log = config.logger ? config.logger.debug.bind(config.logger) : ld.noop
     const storage = (() => {
@@ -59,7 +61,7 @@ module.exports = {
 
     return {
       push: isDebugDisabled ? ld.noop : (name, payload = null) => {
-        const offset = countNanoSeconds(start)
+        const offset = calcDelay(start)
         const data = { name, payload, offset }
         storage.push(data)
         log(data)
@@ -68,14 +70,15 @@ module.exports = {
         if (tracks[name]) {
           throw new Error(`[debug] ${name}: already tracking`)
         }
-        const offset = countNanoSeconds(start)
-        tracks[name] = { name, payload, offset }
+        const internalOffset = calcDelay()
+        tracks[name] = { name, payload, internalOffset }
       },
       trackEnd: isDebugDisabled ? ld.noop : (name, result = null) => {
         if (!tracks[name]) {
           throw new Error(`[debug] ${name}: not yet tracking`)
         }
-        tracks[name].execTime = countNanoSeconds(tracks[name].offset + start)
+        tracks[name].offset = calcDelay(start)
+        tracks[name].internalOffset = calcDelay(tracks[name].internalOffset)
         if (result) {
           tracks[name].result = result
         }
