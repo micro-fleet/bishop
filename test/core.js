@@ -6,8 +6,8 @@ const { test } = require('ava')
 test('remove patterns', async t => {
   const bishop = require(process.env.PWD)()
   const pattern = 'role:test,act:remove'
-  bishop.add(pattern, () => { return 'ok' })
-  t.is(await bishop.act(pattern), 'ok')
+  bishop.add(pattern, () => { return { result: 'ok' }})
+  t.deepEqual(await bishop.act(pattern), { result: 'ok' })
   bishop.remove(pattern)
   t.throws(bishop.act(pattern), /pattern not found/)
 })
@@ -21,7 +21,7 @@ test('use plugin with patterns', async t => {
     t.is(arg1, 'arg1')
     t.is(arg2, 'arg2')
 
-    instance.add(testroute, () => { return 'plugin' })
+    instance.add(testroute, () => { return { result: 'plugin' }})
     return {
       name: 'testplugin',
       routes: { testroute }
@@ -31,7 +31,7 @@ test('use plugin with patterns', async t => {
   const config = await bishop.use(plugin, 'arg1', 'arg2')
   t.is(config.name, 'testplugin')
   t.is(bishop.routes.testplugin.testroute, testroute)
-  t.is(await bishop.act(bishop.routes.testplugin.testroute), 'plugin')
+  t.deepEqual(await bishop.act(bishop.routes.testplugin.testroute), { result: 'plugin' })
 })
 
 // 2do: implement
