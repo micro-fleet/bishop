@@ -1,6 +1,17 @@
 const ld = require('lodash')
 const Promise = require('bluebird')
 
+const countNanoSeconds = (offset, inNanoSeconds = true) => {
+  const now = (() => {
+    if (inNanoSeconds) {
+      const [ seconds, nanoseconds ] = process.hrtime()
+      return seconds * 1e9 + nanoseconds
+    }
+    return new Date().getTime()
+  })()
+  return offset ? now - offset : now
+}
+
 module.exports = {
 
   // model:comments,target:resource,action:create => { model: 'comments', target: 'resource', action: 'create' }
@@ -20,13 +31,16 @@ module.exports = {
   },
 
   // add debug information into message
-  debug(_config, message = {}) {
+  createDebugger(_config, message = {}) {
+
     const config = ld.defaults(_config, {
       field: '$debug',
       enabled: false
     })
+    const start = countNanoSeconds()
+    const isDebugDisabled = !config.enabled
     const storage = (() => {
-      if (!config.enabled) { return [] }
+      if (isDebugDisabled) { return [] }
       if (!config.field) {
         if (!ld.isArray(message)) {
           throw new Error('if .field is falsy, then array expected as second parameter')
@@ -40,27 +54,31 @@ module.exports = {
     })()
 
     const tracks = {}
+
     return {
-      push(payload) {
-        const created = new Date().getTime()
-        storage.push({ created, payload })
+      push: isDebugDisabled ? ld.noop : (name, payload = null) => {
+        const offset = countNanoSeconds(start)
+        storage.push({ name, payload, offset })
       },
-      track(name, payload) {
+      track: isDebugDisabled ? ld.noop : (name, payload = null) => {
         if (tracks[name]) {
           throw new Error(`[debug] ${name}: already tracking`)
         }
-        const created = new Date().getTime()
-        tracks[name] = { name, created }
-        if (payload) { tracks[name].payload = payload }
+        const offset = countNanoSeconds(start)
+        tracks[name] = { name, payload, offset }
       },
-      stopTrack(name) {
+      trackEnd: isDebugDisabled ? ld.noop : (name, result = null) => {
         if (!tracks[name]) {
           throw new Error(`[debug] ${name}: not yet tracking`)
         }
-        tracks[name].time = tracks[name].created - new Date().getTime()
+        tracks[name].execTime = countNanoSeconds(tracks[name].offset + start)
+        if (result) {
+          tracks[name].result = result
+        }
         storage.push(tracks[name])
         delete tracks[name]
-      }
+      },
+      getDebugData: () => storage
     }
   },
 

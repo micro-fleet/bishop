@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, runMethodsParallel, isFunction } = require('./utils')
+const { objectify, runMethodsParallel, isFunction, createDebugger } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -105,34 +105,52 @@ const Bishop = (_config = {}) => {
       if (!_pattern) { throw new Error('pattern not specified') }
       const pattern = ld.assign({}, objectify(_pattern), ...payloads)
 
-      const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern)
+      const isDebugEnabled = pattern.$debug || config.debug
+      const debugStorage = {}
+      const debug = createDebugger({ enabled: isDebugEnabled }, debugStorage)
+      debug.push('source pattern found', pattern)
+
+      const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern, {
+        patterns: true,
+        payloads: true
+      })
       if (!matchResult) {
         throw new Error(`pattern not found: ${JSON.stringify(pattern)}`)
       }
 
-      const { type, handler } = matchResult
+      debug.push('resulting pattern found', pattern)
+      const { type, handler } = matchResult.payload
+      debug.push('pattern matched', matchResult.pattern)
+
       const isLocalPattern = type === 'local'
+
       let method
       if (isLocalPattern) {
         method = handler
+        debug.push('transport selected', 'local')
       } else {
         // wrap with network call
         if (!this.transport[type] || !this.transport[type].send) {
           throw new Error(`transport "${type}" not exists`)
         }
+        debug.push('transport selected', type)
         method = this.transport[type].send
       }
 
       const slowPatternTimer = (() => {
         const slowTimeout = config.slowPatternTimeout || pattern.$slowTimeout
         if (slowTimeout) {
-          return setTimeout(this.log.warn.bind(this.log), slowTimeout, `pattern executing more than ${slowTimeout}ms: ${JSON.stringify(pattern)}`)
+          return setTimeout(() => {
+            this.log.warn(`pattern executing more than ${slowTimeout}ms: ${JSON.stringify(pattern)}`)
+            debug.push('slow timeout warning emitted', slowTimeout)
+          }, slowTimeout)
         }
       })()
       const clearSlowPatternTimer = () => {
         if (slowPatternTimer) { clearTimeout(slowPatternTimer) }
       }
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
+        debug.push('local nowait behaviour selected')
         Promise.resolve(method(...input)).catch(err => {
           // in case of local pattern - resolve immediately and emit error on fail
           // in case of transports - they should respect $nowait flag and emit errors manually
@@ -140,18 +158,23 @@ const Bishop = (_config = {}) => {
           if (!muteError) { this.log.error(err) }
         })
         clearSlowPatternTimer()
-        return Promise.resolve()
+        // append debugin information to empty response
+        const response = isDebugEnabled ? debugStorage : undefined
+        return Promise.resolve(response)
       }: async (...input) => {
-        let result
+        debug.track('pattern method run')
+        let result = {}
         try {
           input.push('$wtf') // 2do: wtf - test 'emit pattern' from local.js is failing without it
           result = await method(...input)
+          debug.trackEnd('pattern method run', 'success')
         } catch (err) {
           const muteError = errorHandler(err)
+          debug.trackEnd('attern method run', `fail: ${err.message}, muted: ${muteError}`)
           if (!muteError) { throw err }
         }
         clearSlowPatternTimer()
-        return result
+        return ld.assign(ld.isObject(result) ? result : { result }, debugStorage)
       }
 
       const timeout = pattern.$timeout || this.timeout
@@ -163,6 +186,7 @@ const Bishop = (_config = {}) => {
         .resolve(executor(pattern))
         .timeout(timeout)
         .catch(Promise.TimeoutError, () => {
+          debug.push('timeout error')
           throw new Error(`pattern timeout after ${timeout}ms: ${JSON.stringify(pattern)}`)
         })
     },
