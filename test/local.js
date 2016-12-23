@@ -35,7 +35,7 @@ test('$timeout behaviour', async t => {
     return 'success'
   })
 
-  t.deepEqual(await bishop.act('role:test,act:timeout', { delay: timeout - 50 }), { result: 'success' })
+  t.deepEqual(await bishop.act('role:test,act:timeout', { delay: timeout - 50 }), 'success' )
   t.throws(bishop.act('role:test,act:timeout', { delay: timeout + 50 }), /pattern timeout after/)
 })
 

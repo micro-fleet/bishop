@@ -168,7 +168,7 @@ const Bishop = (_config = {}) => {
         return Promise.resolve(response)
       }: async (...input) => {
         debug.track('pattern method run')
-        let result = {}
+        let result = null
         try {
           input.push('$wtf') // 2do: wtf - test 'emit pattern' from local.js is failing without it
           result = await method(...input)
@@ -179,7 +179,7 @@ const Bishop = (_config = {}) => {
           if (!muteError) { throw err }
         }
         doPostOperations()
-        return ld.assign(ld.isObject(result) ? result : { result }, debugStorage)
+        return ld.isObject(result) ? ld.assign(result, debugStorage) : result
       }
 
       if (!timeout) {
