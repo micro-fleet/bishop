@@ -82,8 +82,11 @@ const Bishop = (_config = {}) => {
       const pattern = objectify(_pattern)
       const payload = { type, handler }
 
-      if (config.forbidSameRouteNames && pm.lookup(pattern, { patterns: true })) { // ensure same route not yet exists
-        throw new Error(`.forbidSameRouteNames option is enabled, and pattern already exists: ${JSON.stringify(pattern)}`)
+      if (config.forbidSameRouteNames) { // ensure same route not yet exists
+        const foundPattern = pm.lookup(pattern, { patterns: true })
+        if(ld.isEqual(foundPattern, pattern)) {
+          throw new Error(`.forbidSameRouteNames option is enabled, and pattern already exists: ${JSON.stringify(pattern)}`)
+        }
       }
 
       pm.add(pattern, payload)
