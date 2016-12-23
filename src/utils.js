@@ -35,10 +35,12 @@ module.exports = {
 
     const config = ld.defaults(_config, {
       field: '$debug',
-      enabled: false
+      enabled: false,
+      logger: null
     })
     const start = countNanoSeconds()
     const isDebugDisabled = !config.enabled
+    const log = config.logger ? config.logger.debug.bind(config.logger) : ld.noop
     const storage = (() => {
       if (isDebugDisabled) { return [] }
       if (!config.field) {
@@ -58,7 +60,9 @@ module.exports = {
     return {
       push: isDebugDisabled ? ld.noop : (name, payload = null) => {
         const offset = countNanoSeconds(start)
-        storage.push({ name, payload, offset })
+        const data = { name, payload, offset }
+        storage.push(data)
+        log(data)
       },
       track: isDebugDisabled ? ld.noop : (name, payload = null) => {
         if (tracks[name]) {
@@ -76,9 +80,9 @@ module.exports = {
           tracks[name].result = result
         }
         storage.push(tracks[name])
+        log(tracks[name])
         delete tracks[name]
-      },
-      getDebugData: () => storage
+      }
     }
   },
 

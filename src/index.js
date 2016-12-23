@@ -107,7 +107,7 @@ const Bishop = (_config = {}) => {
 
       const isDebugEnabled = pattern.$debug || config.debug
       const debugStorage = {}
-      const debug = createDebugger({ enabled: isDebugEnabled }, debugStorage)
+      const debug = createDebugger({ enabled: isDebugEnabled, logger }, debugStorage)
       debug.push('source pattern found', pattern)
 
       const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern, {
