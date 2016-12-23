@@ -5,6 +5,7 @@ const Promise = require('bluebird')
 
 // default options for bishop instance
 const defaultConfig = {
+  forbidSameRouteNames: false,
   //  if set to insertion, it will try to match entries in insertion order
   //  if set to depth, it will try to match entries with the most properties first
   matchOrder: 'depth', // insertion, depth
@@ -72,9 +73,14 @@ const Bishop = (_config = {}) => {
     // .add(route, function) // execute local payload
     // .add(route, 'transportname') // execute payload using transport
     add(_pattern, handler) {
+
       const type = isFunction(handler) ? 'local' : handler
       const pattern = objectify(_pattern)
       const payload = { type, handler }
+
+      if (config.forbidSameRouteNames && pm.lookup(pattern, { patterns: true })) { // ensure same route not yet exists
+        throw new Error(`.forbidSameRouteNames option is enabled, and pattern already exists: ${JSON.stringify(pattern)}`)
+      }
 
       pm.add(pattern, payload)
       if (type === 'local') {
