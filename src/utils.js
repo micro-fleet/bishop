@@ -19,6 +19,51 @@ module.exports = {
     return ld.extend(obj, extend)
   },
 
+  // add debug information into message
+  debug(_config, message = {}) {
+    const config = ld.defaults(_config, {
+      field: '$debug',
+      enabled: false
+    })
+    const storage = (() => {
+      if (!config.enabled) { return [] }
+      if (!config.field) {
+        if (!ld.isArray(message)) {
+          throw new Error('if .field is falsy, then array expected as second parameter')
+        }
+        return message
+      }
+      if (!ld.isPlainObject(message)) {
+        throw new Error('if .field is set, then object expected as second parameter')
+      }
+      return message[config.field] = []
+    })()
+
+    const tracks = {}
+    return {
+      push(payload) {
+        const created = new Date().getTime()
+        storage.push({ created, payload })
+      },
+      track(name, payload) {
+        if (tracks[name]) {
+          throw new Error(`[debug] ${name}: already tracking`)
+        }
+        const created = new Date().getTime()
+        tracks[name] = { name, created }
+        if (payload) { tracks[name].payload = payload }
+      },
+      stopTrack(name) {
+        if (!tracks[name]) {
+          throw new Error(`[debug] ${name}: not yet tracking`)
+        }
+        tracks[name].time = tracks[name].created - new Date().getTime()
+        storage.push(tracks[name])
+        delete tracks[name]
+      }
+    }
+  },
+
   isFunction(func) {
     return typeof func === 'function'
   },

@@ -11,6 +11,8 @@ const defaultConfig = {
   matchOrder: 'depth', // insertion, depth
   // default timeout for pattern execution in ms
   timeout: 500,
+  // append debbugin information into response
+  debug: false,
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
   // handle only user errors by default and fall down on others
@@ -110,7 +112,6 @@ const Bishop = (_config = {}) => {
 
       const { type, handler } = matchResult
       const isLocalPattern = type === 'local'
-
       let method
       if (isLocalPattern) {
         method = handler
@@ -123,14 +124,14 @@ const Bishop = (_config = {}) => {
       }
 
       const slowPatternTimer = (() => {
-        if (config.slowPatternTimeout) {
-          return setTimeout(this.log.warn.bind(this.log), config.slowPatternTimeout, `pattern executing more than ${config.slowPatternTimeout}ms: ${JSON.stringify(pattern)}`)
+        const slowTimeout = config.slowPatternTimeout || pattern.$slowTimeout
+        if (slowTimeout) {
+          return setTimeout(this.log.warn.bind(this.log), slowTimeout, `pattern executing more than ${slowTimeout}ms: ${JSON.stringify(pattern)}`)
         }
       })()
       const clearSlowPatternTimer = () => {
         if (slowPatternTimer) { clearTimeout(slowPatternTimer) }
       }
-
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
         Promise.resolve(method(...input)).catch(err => {
           // in case of local pattern - resolve immediately and emit error on fail
