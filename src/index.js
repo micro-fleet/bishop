@@ -18,17 +18,27 @@ const defaultConfig = {
   // own logger instance can be passed here, should support at lease: 'debug, info, warn, error'
   log: {
     name: 'bishop'
-  }
+  },
+  defaultLogger: 'pino'
 }
 
 const Bishop = (_config = {}) => {
-
   const config = ld.assign({}, defaultConfig, _config)
 
   // set passed logger instance, or create 'pino' logger with passed options
-  const logger = ld.isPlainObject(config.log)
-    ? require('pino')(ld.clone(config.log))
-    : config.log
+  const logger = (() => {
+    if (!ld.isPlainObject(config.log)) { // logger instance passed
+      return config.log
+    }
+    try {
+      return require(config.defaultLogger)(ld.clone(config.log))
+    } catch (err) {
+      if (err.code === 'MODULE_NOT_FOUND') {
+        err.message = `Logger not found, please install it: npm install --save ${config.defaultLogger}`
+      }
+      throw err
+    }
+  })()
 
   // create two pattern matchers: matcher with all patterns (local + network), and local only
   const pm = bloomrun({ indexing: config.matchOrder })
