@@ -64,3 +64,23 @@ test('$nowait behaviour', async t => {
   await Promise.delay(timeout + 100)
   t.is(firedError.message, 'delayed fail')
 })
+
+
+test.only('test regexp patterns', async t => {
+  const bishop = require(process.env.PWD)()
+  let result
+
+  bishop.add('role:test,regexp:/.+/', () => { return 'done' })
+  result = await bishop.act('role:test,regexp:hello')
+  t.is(result, 'done')
+
+  bishop.add('role:test,regexp2:/.*/', () => { return 'done2' })
+  result = await bishop.act('role:test', { regexp2: '' })
+  t.is(result, 'done2')
+
+  // same with object
+  bishop.add({ role: 'test', regexp3: /.*/ }, () => { return 'done3' })
+  result = await bishop.act('role:test', { regexp3: null })
+  t.is(result, 'done3')
+
+})
