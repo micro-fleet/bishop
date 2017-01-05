@@ -11,7 +11,7 @@ const defaultConfig = {
   matchOrder: 'depth', // insertion, depth
   // default timeout for pattern execution in ms
   timeout: 500,
-  // append debbugin information into response
+  // append debbuging information into response
   debug: false,
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
