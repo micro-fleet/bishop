@@ -149,7 +149,6 @@ const Bishop = (_config = {}, logger = console) => {
         debug.track('pattern method run')
         let result = null
         try {
-          input.push('$wtf') // 2do: wtf - test 'emit pattern' from local.js is failing without it
           result = await method(...input)
           debug.trackEnd('pattern method run', 'success')
         } catch (err) {

@@ -4,7 +4,8 @@
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
-    "test": "npm run legacy && eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
+    "test": "ava",
+    "_test": "npm run legacy && eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
     "debug": "npm run legacy && ava --",
     "coverage": "nyc report --reporter=html && open coverage/index.html",
     "legacy": "babel -s inline -d legacy src",
@@ -21,19 +22,19 @@
   },
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
-    "ava": "^0.16.0",
-    "babel-cli": "^6.18.0",
-    "babel-core": "^6.18.2",
-    "babel-plugin-transform-async-to-generator": "^6.16.0",
+    "ava": "^0.17.0",
+    "babel-cli": "^6.22.2",
+    "babel-core": "^6.22.1",
+    "babel-plugin-transform-async-to-generator": "^6.22.0",
     "coveralls": "^2.11.15",
-    "eslint": "^3.9.1",
-    "eslint-plugin-output-todo-comments": "0.0.6",
-    "nyc": "^9.0.1"
+    "eslint": "^3.14.0",
+    "eslint-plugin-output-todo-comments": "0.0.7",
+    "nyc": "^10.1.2"
   },
   "dependencies": {
-    "bloomrun": "^3.0.1",
-    "bluebird": "^3.4.6",
-    "lodash": "^4.17.2"
+    "bloomrun": "^3.0.3",
+    "bluebird": "^3.4.7",
+    "lodash": "^4.17.4"
   },
   "ava": {
     "verbose": true,
