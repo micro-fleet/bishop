@@ -52,7 +52,7 @@ const Bishop = (_config = {}) => {
   // check if error should be passed to caller instead of throwing
   const errorHandler = isFunction(config.terminateOn) ? config.terminateOn : err => {
     if (config.terminateOn.includes(err.name)) {
-      logger.fatal(err)
+      logger.error(err)
       process.exit(1)
     }
     // falsy - handle error (return to sender, emit message etc)
