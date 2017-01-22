@@ -18,32 +18,11 @@ const defaultConfig = {
   // handle only user errors by default and fall down on others
   // example: ReferenceError, RangeError, SyntaxError, TypeError, Error, ...
   // own sync function can be passed
-  terminateOn: ['ReferenceError', 'RangeError', 'SyntaxError', 'TypeError'],
-  // logger options for 'pino' logger: https://www.npmjs.com/package/pino#pinoopts-stream
-  // own logger instance can be passed here, should support at lease: 'debug, info, warn, error'
-  log: {
-    name: 'bishop'
-  },
-  defaultLogger: 'pino'
+  terminateOn: ['ReferenceError', 'RangeError', 'SyntaxError', 'TypeError']
 }
 
-const Bishop = (_config = {}) => {
+const Bishop = (_config = {}, logger = console) => {
   const config = ld.assign({}, defaultConfig, _config)
-
-  // set passed logger instance, or create 'pino' logger with passed options
-  const logger = (() => {
-    if (!ld.isPlainObject(config.log)) { // logger instance passed
-      return config.log
-    }
-    try {
-      return require(config.defaultLogger)(ld.clone(config.log))
-    } catch (err) {
-      if (err.code === 'MODULE_NOT_FOUND') {
-        err.message = `Logger not found, please install it: npm install --save ${config.defaultLogger}`
-      }
-      throw err
-    }
-  })()
 
   // create two pattern matchers: matcher with all patterns (local + network), and local only
   const pm = bloomrun({ indexing: config.matchOrder })
