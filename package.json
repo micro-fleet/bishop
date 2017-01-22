@@ -8,7 +8,7 @@
     "debug": "npm run legacy && ava --",
     "coverage": "nyc report --reporter=html && open coverage/index.html",
     "legacy": "babel -s inline -d legacy src",
-    "deploy": "npm test && npm publish"
+    "deploy": "npm run legacy && npm test && npm publish"
   },
   "repository": {
     "type": "git",
@@ -29,16 +29,6 @@
     "eslint": "^3.9.1",
     "eslint-plugin-output-todo-comments": "0.0.6",
     "nyc": "^9.0.1"
-  },
-  "peerDependencies": {
-    "amqp-coffee": "^0.1.28",
-    "koa": "next",
-    "koa-bodyparser": "next",
-    "koa-json": "next",
-    "koa-router": "next",
-    "request": "^2.79.0",
-    "request-promise": "^4.1.1",
-    "pino": "^3.0.1"
   },
   "dependencies": {
     "bloomrun": "^3.0.1",

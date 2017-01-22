@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, runMethodsParallel, isFunction, createDebugger, calcDelay } = require('./utils')
+const { objectify, runMethodsParallel, isFunction, createDebugger, calcDelay, requirePlugin } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -176,9 +176,8 @@ const Bishop = (_config = {}, logger = console) => {
     // load plugin, module etc
     async use(...input) {
       const [ path, ...params ] = input
-      const plugin = ld.isString(path) ? require(path) : path
+      const plugin = requirePlugin(path)
       if (!isFunction(plugin)) { throw new Error('unable to load plugin: function expected, but not found') }
-
       const data = await plugin(this, ...params)
       if (!data) { return } // this plugin dont return any suitable data
 

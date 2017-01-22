@@ -6,10 +6,10 @@ client.add({ role: 'test' }, 'http-client')
 
 ;(async () => {
   try {
-    await server.use('../src/transports/http', {
+    await server.use('bishop-transport-http', {
       name: 'http-server'
     })
-    await client.use('../src/transports/http', {
+    await client.use('bishop-transport-http', {
       name: 'http-client'
     })
     await server.listen()

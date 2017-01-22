@@ -11,10 +11,25 @@ const calcDelay = (offset, inNanoSeconds = true) => {
   })()
   return offset ? now - offset : now
 }
+//
+// const requireCatchError = path => {
+//   try {
+//     return require(path)
+//   } catch(err) {
+//     if (err.code === 'MODULE_NOT_FOUND' && err.message.includes(path)) {
+//       err.message = ''
+//     }
+//   }
+// }
 
 module.exports = {
 
   calcDelay,
+
+  requirePlugin(input) {
+    if (!ld.isString(input)) { return input }
+    return require(input)
+  },
 
   // model:comments,target:resource,action:create => { model: 'comments', target: 'resource', action: 'create' }
   objectify(input, extend = {}) {
@@ -42,7 +57,7 @@ module.exports = {
     })
     const start = calcDelay()
     const isDebugDisabled = !config.enabled
-    const log = config.logger ? config.logger.debug.bind(config.logger) : ld.noop
+    const log = config.logger.debug ? config.logger.debug.bind(config.logger) : console.log
     const storage = (() => {
       if (isDebugDisabled) { return [] }
       if (!config.field) {
