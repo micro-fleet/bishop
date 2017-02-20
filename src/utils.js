@@ -37,7 +37,7 @@ module.exports = {
 
     const obj = input.split(',').reduce((prev, cur) => {
       let [ key, value ] = cur.trim().split(':')
-      if (!value) {
+      if (typeof value === 'undefined') {
         value = '/.*/'
       }
       const trimmedValue = value.trim()
