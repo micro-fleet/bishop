@@ -36,8 +36,10 @@ module.exports = {
     if (!ld.isString(input)) { return ld.extend({}, input, extend) }
 
     const obj = input.split(',').reduce((prev, cur) => {
-      const [ key, value ] = cur.trim().split(':')
-      if (!value) { throw new Error(`route "${input}" is not valid`)}
+      let [ key, value ] = cur.trim().split(':')
+      if (!value) {
+        value = '/.*/'
+      }
       const trimmedValue = value.trim()
       prev[key.trim()] = trimmedValue[0] === '/' ?
         new RegExp(trimmedValue.slice(1, -1)) :

@@ -6,9 +6,7 @@ client.add({ role: 'test' }, 'http-client')
 
 ;(async () => {
   try {
-    await server.use('bishop-http', {
-      name: 'http-server'
-    })
+    await server.use('bishop-http')
     await client.use('bishop-http', {
       name: 'http-client'
     })
