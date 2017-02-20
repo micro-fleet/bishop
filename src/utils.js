@@ -50,61 +50,61 @@ module.exports = {
   },
 
   // add debug information into message
-  createDebugger(_config, message = {}) {
-
-    const config = ld.defaults(_config, {
-      field: '$debug',
-      enabled: false,
-      logger: null
-    })
-    const start = calcDelay()
-    const isDebugDisabled = !config.enabled
-    const log = config.logger.debug ? config.logger.debug.bind(config.logger) : console.log
-    const storage = (() => {
-      if (isDebugDisabled) { return [] }
-      if (!config.field) {
-        if (!ld.isArray(message)) {
-          throw new Error('if .field is falsy, then array expected as second parameter')
-        }
-        return message
-      }
-      if (!ld.isPlainObject(message)) {
-        throw new Error('if .field is set, then object expected as second parameter')
-      }
-      return message[config.field] = []
-    })()
-
-    const tracks = {}
-
-    return {
-      push: isDebugDisabled ? ld.noop : (name, payload = null) => {
-        const offset = calcDelay(start)
-        const data = { name, payload, offset }
-        storage.push(data)
-        log(data)
-      },
-      track: isDebugDisabled ? ld.noop : (name, payload = null) => {
-        if (tracks[name]) {
-          throw new Error(`[debug] ${name}: already tracking`)
-        }
-        const internalOffset = calcDelay()
-        tracks[name] = { name, payload, internalOffset }
-      },
-      trackEnd: isDebugDisabled ? ld.noop : (name, result = null) => {
-        if (!tracks[name]) {
-          throw new Error(`[debug] ${name}: not yet tracking`)
-        }
-        tracks[name].offset = calcDelay(start)
-        tracks[name].internalOffset = calcDelay(tracks[name].internalOffset)
-        if (result) {
-          tracks[name].result = result
-        }
-        storage.push(tracks[name])
-        log(tracks[name])
-        delete tracks[name]
-      }
-    }
-  },
+  // createDebugger(_config, message = {}) {
+  //
+  //   const config = ld.defaults(_config, {
+  //     field: '$debug',
+  //     enabled: false,
+  //     logger: null
+  //   })
+  //   const start = calcDelay()
+  //   const isDebugDisabled = !config.enabled
+  //   const log = config.logger.debug ? config.logger.debug.bind(config.logger) : console.log
+  //   const storage = (() => {
+  //     if (isDebugDisabled) { return [] }
+  //     if (!config.field) {
+  //       if (!ld.isArray(message)) {
+  //         throw new Error('if .field is falsy, then array expected as second parameter')
+  //       }
+  //       return message
+  //     }
+  //     if (!ld.isPlainObject(message)) {
+  //       throw new Error('if .field is set, then object expected as second parameter')
+  //     }
+  //     return message[config.field] = []
+  //   })()
+  //
+  //   const tracks = {}
+  //
+  //   return {
+  //     push: isDebugDisabled ? ld.noop : (name, payload = null) => {
+  //       const offset = calcDelay(start)
+  //       const data = { name, payload, offset }
+  //       storage.push(data)
+  //       log(data)
+  //     },
+  //     track: isDebugDisabled ? ld.noop : (name, payload = null) => {
+  //       if (tracks[name]) {
+  //         throw new Error(`[debug] ${name}: already tracking`)
+  //       }
+  //       const internalOffset = calcDelay()
+  //       tracks[name] = { name, payload, internalOffset }
+  //     },
+  //     trackEnd: isDebugDisabled ? ld.noop : (name, result = null) => {
+  //       if (!tracks[name]) {
+  //         throw new Error(`[debug] ${name}: not yet tracking`)
+  //       }
+  //       tracks[name].offset = calcDelay(start)
+  //       tracks[name].internalOffset = calcDelay(tracks[name].internalOffset)
+  //       if (result) {
+  //         tracks[name].result = result
+  //       }
+  //       storage.push(tracks[name])
+  //       log(tracks[name])
+  //       delete tracks[name]
+  //     }
+  //   }
+  // },
 
   isFunction(func) {
     return typeof func === 'function'

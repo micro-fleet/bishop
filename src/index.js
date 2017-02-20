@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, runMethodsParallel, isFunction, createDebugger, calcDelay, requirePlugin } = require('./utils')
+const { objectify, runMethodsParallel, isFunction, calcDelay, requirePlugin } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -52,14 +52,18 @@ const Bishop = (_config = {}, logger = console) => {
     // loaded remote connectors for further usage
     transport: {},
 
+    registerWrapper: {},
+
     // append handler for route (local or remote)
     // .add(route, function) // execute local payload
+    // .add(route, 'wrapper', wrapper, 'transportname') // execute payload using transport
     // .add(route, 'transportname') // execute payload using transport
-    add(_pattern, handler) {
-
-      const type = isFunction(handler) ? 'local' : handler
-      const pattern = objectify(_pattern)
-      const payload = { type, handler }
+    add(sourcePattern, ...wrappers) {
+      const handler = wrappers[wrappers.length - 1]
+      if (!handler || !isFunction(handler)) {
+        throw new Error('.add: please pass callback as last argument')
+      }
+      const pattern = objectify(sourcePattern)
 
       if (config.forbidSameRouteNames) { // ensure same route not yet exists
         const foundPattern = pm.lookup(pattern, { patterns: true })
@@ -68,34 +72,33 @@ const Bishop = (_config = {}, logger = console) => {
         }
       }
 
-      pm.add(pattern, payload)
-      if (type === 'local') {
-        pmLocal.add(pattern, payload)
+      const isLocalPattern = isFunction(handler)
+      const data = { wrappers }
+
+      pm.add(pattern, data)
+      if (isLocalPattern) {
+        pmLocal.add(pattern, data)
       }
     },
 
-    remove(_pattern) {
-      pm.remove(objectify(_pattern))
-      pmLocal.remove(objectify(_pattern))
+    remove(sourcePattern) {
+      const pattern = objectify(sourcePattern)
+      pm.remove(pattern)
+      pmLocal.remove(pattern)
     },
 
     // $timeout - redefine global request timeout for network requests
     // $slow - emit warning if pattern executing more than $slow ms
     // $local - search only in local patterns, skip remote transporting
     // $nowait - resolve immediately (in case of local patters), or then message is sent (in case of transports)
-    // $debug - append debug information into log output
-    async act() {
+    async act(sourcePattern, ...payloads) {
       const patternStarted = calcDelay(null, false)
-      const [ _pattern, ...payloads ] = arguments
-      if (!_pattern) { throw new Error('pattern not specified') }
-      const pattern = ld.assign({}, objectify(_pattern), ...payloads)
+      if (!sourcePattern) {
+        throw new Error('.act: please specify at least one search pattern')
+      }
+      const pattern = ld.assign({}, objectify(sourcePattern), ...payloads)
       const slowTimeout = config.slowPatternTimeout || pattern.$slow
       const timeout = pattern.$timeout || this.timeout
-      const isDebugEnabled = pattern.$debug || config.debug
-      const debugStorage = {}
-      const debug = createDebugger({ enabled: isDebugEnabled, logger }, debugStorage)
-      debug.track('finished')
-      debug.push('source pattern found', pattern)
 
       const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern, {
         patterns: true,
@@ -105,23 +108,21 @@ const Bishop = (_config = {}, logger = console) => {
         throw new Error(`pattern not found: ${JSON.stringify(pattern)}`)
       }
 
-      debug.push('resulting pattern found', pattern)
-      const { type, handler } = matchResult.payload
-      debug.push('pattern matched', matchResult.pattern)
+      const { wrappers } = matchResult.payload
+      // debug.push('pattern matched', matchResult.pattern)
 
-      const isLocalPattern = type === 'local'
-
-      let method
+      const handler = wrappers.pop()
+      const isLocalPattern = isFunction(handler)
+      let executeChain
       if (isLocalPattern) {
-        method = handler
-        debug.push('transport selected', 'local')
+        // wrappers
+        executeChain = handler
       } else {
         // wrap with network call
-        if (!this.transport[type] || !this.transport[type].send) {
-          throw new Error(`transport "${type}" not exists`)
+        if (!this.transport[handler] || !this.transport[handler].send) {
+          throw new Error(`transport "${handler}" not exists`)
         }
-        debug.push('transport selected', type)
-        method = this.transport[type].send
+        executeChain = this.transport[handler].send
       }
 
       const doPostOperations = () => {
@@ -131,33 +132,28 @@ const Bishop = (_config = {}, logger = console) => {
             this.log.warn(`pattern executed in ${executionTime}ms: ${JSON.stringify(pattern)}`)
           }
         }
-        debug.trackEnd('finished')
       }
+
+
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
-        debug.push('local nowait behaviour selected')
-        Promise.resolve(method(...input)).catch(err => {
+        Promise.resolve(executeChain(...input)).catch(err => {
           // in case of local pattern - resolve immediately and emit error on fail
           // in case of transports - they should respect $nowait flag and emit errors manually
           const muteError = errorHandler(err)
           if (!muteError) { this.log.error(err) }
         })
-        // append debugin information to empty response
-        const response = isDebugEnabled ? debugStorage : undefined
         doPostOperations()
-        return Promise.resolve(response)
+        return Promise.resolve()
       }: async (...input) => {
-        debug.track('pattern method run')
         let result = null
         try {
-          result = await method(...input)
-          debug.trackEnd('pattern method run', 'success')
+          result = await executeChain(...input)
         } catch (err) {
           const muteError = errorHandler(err)
-          debug.trackEnd('pattern method run', `fail: ${err.message}, muted: ${muteError}`)
           if (!muteError) { throw err }
         }
         doPostOperations()
-        return ld.isObject(result) ? ld.assign(result, debugStorage) : result
+        return result
       }
 
       if (!timeout) {
@@ -167,7 +163,6 @@ const Bishop = (_config = {}, logger = console) => {
         .resolve(executor(pattern))
         .timeout(timeout)
         .catch(Promise.TimeoutError, () => {
-          debug.push('timeout error')
           throw new Error(`pattern timeout after ${timeout}ms: ${JSON.stringify(pattern)}`)
         })
     },
