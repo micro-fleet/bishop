@@ -30,6 +30,7 @@ const Bishop = (_config = {}, logger = console) => {
   // create two pattern matchers: matcher with all patterns (local + network), and local only
   const pm = bloomrun({ indexing: config.matchOrder })
   const pmLocal = bloomrun({ indexing: config.matchOrder })
+  const pmWrappers = bloomrun({ indexing: config.matchOrder })
 
   // check if error should be passed to caller instead of throwing
   const errorHandler = isFunction(config.terminateOn) ? config.terminateOn : err => {
@@ -42,8 +43,10 @@ const Bishop = (_config = {}, logger = console) => {
     return false
   }
 
-  const executeChain = (chain, message) => {
-    return Promise.reduce(chain, (input, method) => {
+  const executeChain = (expressWrappers, message) => {
+    // 1) search all wrappers via pattern-matching-style
+    // 2) execute all wrappers via expressjs-style
+    return Promise.reduce(pmWrappers.list(message).concat(...expressWrappers), (input, method) => {
       const type = typeof method
       switch (type) {
         case 'function':
@@ -80,6 +83,17 @@ const Bishop = (_config = {}, logger = console) => {
         throw new Error(`wrapper ${externalMethodName} already registered`)
       }
       registeredWrappers[name] = wrapper
+    },
+
+    // registered wrapper will be executed on pattern match before .act will emit
+    wrap(sourcePattern, wrapper) {
+      if (!wrapper || !isFunction(wrapper)) {
+        throw new Error('.wrap: please pass callback as last argument')
+      }
+      pmWrappers.add(
+        objectify(sourcePattern),
+        wrapper
+      )
     },
 
     // append handler for route (local or remote)
