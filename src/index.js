@@ -24,6 +24,9 @@ const defaultConfig = {
 const Bishop = (_config = {}, logger = console) => {
   const config = ld.assign({}, defaultConfig, _config)
 
+  // additional wrappers which can be executed durning .act
+  const registeredWrappers = {}
+
   // create two pattern matchers: matcher with all patterns (local + network), and local only
   const pm = bloomrun({ indexing: config.matchOrder })
   const pmLocal = bloomrun({ indexing: config.matchOrder })
@@ -39,6 +42,25 @@ const Bishop = (_config = {}, logger = console) => {
     return false
   }
 
+  const executeChain = (chain, message) => {
+    return Promise.reduce(chain, (input, method) => {
+      const type = typeof method
+      switch (type) {
+        case 'function':
+          return method(input)
+        case 'string':
+          const [ externalMethodName, ...parameters] = method.split(':')
+          const externalMethod = registeredWrappers[externalMethodName]
+          if (!externalMethod) {
+            throw new Error(`looks like ${method} handler is not registered via .register method`)
+          }
+          return externalMethod(input, ...parameters)
+        default:
+          throw new Error(`data type ${type} is not supported in payload`)
+      }
+    }, message)
+  }
+
   return {
 
     timeout: config.timeout,
@@ -52,7 +74,13 @@ const Bishop = (_config = {}, logger = console) => {
     // loaded remote connectors for further usage
     transport: {},
 
-    registerWrapper: {},
+    register(name, wrapper) {
+      const [ externalMethodName ] = name.split(':')
+      if (registeredWrappers[externalMethodName]) {
+        throw new Error(`wrapper ${externalMethodName} already registered`)
+      }
+      registeredWrappers[name] = wrapper
+    },
 
     // append handler for route (local or remote)
     // .add(route, function) // execute local payload
@@ -111,19 +139,9 @@ const Bishop = (_config = {}, logger = console) => {
       const { wrappers } = matchResult.payload
       // debug.push('pattern matched', matchResult.pattern)
 
-      const handler = wrappers.pop()
+      // const handler = wrappers.pop()
+      const handler = wrappers[wrappers.length - 1]
       const isLocalPattern = isFunction(handler)
-      let executeChain
-      if (isLocalPattern) {
-        // wrappers
-        executeChain = handler
-      } else {
-        // wrap with network call
-        if (!this.transport[handler] || !this.transport[handler].send) {
-          throw new Error(`transport "${handler}" not exists`)
-        }
-        executeChain = this.transport[handler].send
-      }
 
       const doPostOperations = () => {
         if (slowTimeout) {
@@ -136,7 +154,7 @@ const Bishop = (_config = {}, logger = console) => {
 
 
       const executor = isLocalPattern && pattern.$nowait ? (...input) => {
-        Promise.resolve(executeChain(...input)).catch(err => {
+        Promise.resolve(executeChain(wrappers, ...input)).catch(err => {
           // in case of local pattern - resolve immediately and emit error on fail
           // in case of transports - they should respect $nowait flag and emit errors manually
           const muteError = errorHandler(err)
@@ -147,7 +165,7 @@ const Bishop = (_config = {}, logger = console) => {
       }: async (...input) => {
         let result = null
         try {
-          result = await executeChain(...input)
+          result = await executeChain(wrappers, ...input)
         } catch (err) {
           const muteError = errorHandler(err)
           if (!muteError) { throw err }
@@ -182,6 +200,8 @@ const Bishop = (_config = {}, logger = console) => {
         case 'transport': // transport connection
           if (!name) { throw new Error('transport plugins should return .name property') }
           this.transport[name] = data
+          // register transport as local wrapper
+          this.register(name, this.transport[name].send)
           break
 
         default: // plugin with business logic

@@ -66,7 +66,7 @@ test('$nowait behaviour', async t => {
 })
 
 
-test.only('test regexp patterns', async t => {
+test('test regexp patterns', async t => {
   const bishop = require(process.env.PWD)()
   let result
 
