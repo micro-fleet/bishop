@@ -12,7 +12,7 @@ const defaultConfig = {
   // default timeout for pattern execution in ms
   timeout: 500,
   // append debbuging information into response
-  debug: false,
+  // debug: false,
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
   // handle only user errors by default and fall down on others
