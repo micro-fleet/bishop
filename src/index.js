@@ -203,10 +203,11 @@ const Bishop = (_config = {}, logger = console) => {
     async use(...input) {
       const [ path, ...params ] = input
       const plugin = requirePlugin(path)
-      if (!isFunction(plugin)) { throw new Error('unable to load plugin: function expected, but not found') }
+      if (!isFunction(plugin)) {
+        throw new Error('unable to load plugin: function expected, but not found')
+      }
       const data = await plugin(this, ...params)
       if (!data) { return } // this plugin dont return any suitable data
-
       const { name, routes } = data
 
       switch (data.type) {
