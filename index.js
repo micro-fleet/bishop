@@ -1,1 +1,1 @@
-module.exports = require('./legacy')
+module.exports = require('./src')

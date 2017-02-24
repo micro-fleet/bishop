@@ -1,29 +1,6 @@
 > Microservices toolkit for Node.js
 
 # bishop
-[place for badges]
+this project is under active development, no time for description - sorry
 
-## Overview
-[description, akka/seneca, differences?]
-
-## Installation
-First, install default logger (if you don't want to use own, see advanced examples & configuration)
-```console
-$ npm install --save pino
-```
-Then, install toolkit library
-```console
-$ npm install --save bishop
-```
-
-## Usage
-```javascript
-```
-
-
-- difference between seneca, speed tests
-- usage examples
-- configuration options
-- error handling
-- logging
-- remote transports
+NOTE: it is not possible to use default nodejs mode from v4.0.0 (`node --harmony-async-await` flag required)

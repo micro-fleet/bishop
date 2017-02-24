@@ -1,0 +1,25 @@
+# http://eslint.org/docs/rules/
+extends: eslint:recommended
+plugins:
+  - output-todo-comments
+parserOptions:
+  ecmaVersion: 8
+env:
+  node: true
+  mocha: true
+  es6: true
+rules:
+  complexity: [ warn, 10 ]
+  no-case-declarations: warn
+  no-console: off
+  new-cap: off
+  strict: off
+  no-use-before-define: off
+  eol-last: off
+  quotes: [ error, single ]
+  output-todo-comments/output-todo-comments:
+  - warn
+  - terms:
+    - todo
+    - fixme
+    - 2do

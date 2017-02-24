@@ -102,8 +102,8 @@ const Bishop = (_config = {}, logger = console) => {
     // .add(route, 'transportname') // execute payload using transport
     add(sourcePattern, ...wrappers) {
       const handler = wrappers[wrappers.length - 1]
-      if (!handler || !isFunction(handler)) {
-        throw new Error('.add: please pass callback as last argument')
+      if (!handler) {
+        throw new Error('.add: please pass handler as last argument')
       }
       const pattern = objectify(sourcePattern)
 

@@ -30,12 +30,14 @@ test('handle user error', async t => {
 test('$timeout behaviour', async t => {
   const timeout = 100
   const bishop = require(process.env.PWD)({ timeout })
-  bishop.add('role:test,act:timeout', async message => {
-    await Promise.delay(message.delay)
+  bishop.add('role:test,act:timeout', async ({ delay }) => {
+    if (delay) {
+      await Promise.delay(delay)
+    }
     return 'success'
   })
 
-  t.deepEqual(await bishop.act('role:test,act:timeout', { delay: timeout - 50 }), 'success' )
+  t.deepEqual(await bishop.act('role:test,act:timeout'), 'success' )
   t.throws(bishop.act('role:test,act:timeout', { delay: timeout + 50 }), /pattern timeout after/)
 })
 

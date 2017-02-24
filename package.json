@@ -1,15 +1,10 @@
 {
   "name": "bishop",
-  "version": "3.0.10",
+  "version": "4.0.0",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
-    "test": "npm run legacy && ava",
-    "_test": "npm run legacy && eslint src && nyc ava && nyc check-coverage --lines 90 --functions 80 --branches 80",
-    "debug": "npm run legacy && ava --",
-    "coverage": "nyc report --reporter=html && open coverage/index.html",
-    "legacy": "babel -s inline -d legacy src",
-    "deploy": "npm run legacy && npm test && npm publish"
+    "test": "eslint src && node --harmony-async-await ./node_modules/.bin/ava"
   },
   "repository": {
     "type": "git",
@@ -20,12 +15,12 @@
   "bugs": {
     "url": "https://github.com/afoninsky/bishop/issues"
   },
+  "engines": {
+    "node": ">=7.0.0"
+  },
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
     "ava": "^0.17.0",
-    "babel-cli": "^6.22.2",
-    "babel-core": "^6.22.1",
-    "babel-plugin-transform-async-to-generator": "^6.22.0",
     "coveralls": "^2.11.15",
     "eslint": "^3.14.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
@@ -40,21 +35,6 @@
     "verbose": true,
     "source": [
       "**/*js"
-    ]
-  },
-  "babel": {
-    "presets": [
-      "es2015"
-    ],
-    "plugins": [
-      "transform-async-to-generator",
-      [
-        "transform-runtime",
-        {
-          "polyfill": false,
-          "regenerator": true
-        }
-      ]
     ]
   },
   "nyc": {
