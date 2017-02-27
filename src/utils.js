@@ -1,5 +1,5 @@
 const ld = require('lodash')
-const Promise = require('bluebird')
+// const Promise = require('bluebird')
 
 const calcDelay = (offset, inNanoSeconds = true) => {
   const now = (() => {
@@ -117,11 +117,11 @@ module.exports = {
   isFunction(func) {
     return typeof func === 'function'
   },
-
-  async runMethodsParallel(object, methodName) {
-    await Promise.map(ld.keys(object), name => {
-      const method = object[name][methodName]
-      return method && method()
-    })
-  },
+  //
+  // async runMethodsParallel(object, methodName) {
+  //   await Promise.map(ld.keys(object), name => {
+  //     const method = object[name][methodName]
+  //     return method && method()
+  //   })
+  // },
 }

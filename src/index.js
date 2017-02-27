@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, runMethodsParallel, isFunction, calcDelay, requirePlugin, throwError, stringify } = require('./utils')
+const { objectify, calcDelay, throwError, stringify } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -15,238 +15,125 @@ const defaultConfig = {
   // debug: false,
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
-  // handle only user errors by default and fall down on others
-  // example: ReferenceError, RangeError, SyntaxError, TypeError, Error, ...
-  // own sync function can be passed
-  terminateOn: ['ReferenceError', 'RangeError', 'SyntaxError', 'TypeError', 'Error']
+  // default behaviour on error - emit exception
+  onError: null,
+  // default logger instance
+  logger: console
 }
 
-const Bishop = (_config = {}, logger = console) => {
-  const config = ld.assign({}, defaultConfig, _config)
-  // additional wrappers which can be executed durning .act
-  const registeredWrappers = {}
+class Bishop {
+  constructor(userConfig) {
 
-  // create two pattern matchers: matcher with all patterns (local + network), and local only
-  const pm = bloomrun({ indexing: config.matchOrder })
-  const pmLocal = bloomrun({ indexing: config.matchOrder })
-  const pmWrappers = bloomrun({ indexing: config.matchOrder })
+    const config = this.config = Object.assign({}, defaultConfig, userConfig)
+    this.log = config.logger
+    this.onError = config.onError
 
-  // check if error should be passed to caller instead of throwing
-  const errorHandler = isFunction(config.terminateOn) ? config.terminateOn : err => {
-    if (config.terminateOn.includes(err.name)) {
-      throw err
-    }
-    // falsy - handle error (return to sender, emit message etc)
-    // truthy - mute error (ex: error already logged)
-    return false
+    this.globalPatternMatcher = bloomrun({ indexing: config.matchOrder })
+    this.localPatternMatcher = bloomrun({ indexing: config.matchOrder })
+    this.chainPatternMatcher = bloomrun({ indexing: config.matchOrder })
   }
 
-  const emitSlowTimeoutWarning = (patternStarted, slowTimeout, pattern) => {
-    const executionTime = calcDelay(patternStarted, false)
-    if (executionTime > slowTimeout) {
-      logger.warn(`pattern executed in ${executionTime}ms: ${JSON.stringify(pattern)}`)
+  // register service for specified pattern
+  add(_pattern, service) {
+    const pattern = objectify(_pattern)
+
+    if (this.config.forbidSameRouteNames) { // ensure same route not yet exists
+      const foundPattern = this.globalPatternMatcher.lookup(pattern, { patterns: true })
+      if(ld.isEqual(foundPattern, pattern)) {
+        throwError(new Error(`.forbidSameRouteNames option is enabled, and pattern already exists: ${stringify(pattern)}`))
+      }
+    }
+
+    this.globalPatternMatcher.add(pattern, service) // add service to global pattern matcher
+    if (ld.isFunction(service)) { // also register service as local function (opposite to remote network calls)
+      this.localPatternMatcher.add(pattern, service)
     }
   }
 
-  const executeChain = (message, chain, options) => {
-    const { immediate, ctx } = options
-    const timeout = message.$timeout || ctx.timeout
+  // remove pattern from pattern matcher instance
+  remove(_pattern) {
+    const pattern = objectify(_pattern)
+    this.globalPatternMatcher.remove(pattern)
+    this.localPatternMatcher.remove(pattern)
+  }
 
-    const internalErrorHandler = err => {
-      const muteError = errorHandler(err)
-      if (!muteError) { ctx.log.error(err) }
+  // find first matching service by pattern, and execute it
+  //  $timeout - redefine global request timeout for network requests
+  //  $slow - emit warning if pattern executing more than $slow ms
+  //  $local - search only in local patterns, skip remote transports
+  //  $nowait - resolve immediately (in case of local patterns), or then message is sent (in case of transports)
+  act(_pattern, ...payloads) {
+    if (!_pattern) {
+      throw new Error('.act: please specify at least one search pattern')
+    }
+    const actStarted = calcDelay(null, false)
+    const pattern = ld.assign({}, objectify(_pattern), ...payloads)
+    const patternMatcher = pattern.$local ? this.localPatternMatcher : this.globalPatternMatcher
+    const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
+    if (!result) {
+      return Promise.reject(new Error(`pattern not found: ${stringify(pattern)}`))
+    }
+    // result.pattern = found pattern
+    const service = result.payload
+
+    // travel over all patterns and return pass-thru chain of service calls
+    // 2do: think about caching
+    const executionChain = this.chainPatternMatcher.list(pattern).reduce((chain, method) => {
+      if (typeof method !== 'string') { // local function is registered
+        chain.push(method)
+      } else { // remote function expected: should look for registered transport wrapper and return ready call
+        const { wrapper, options } = this.registeredWrappers[method]
+        if (!wrapper) {
+          throwError(new Error(`looks like ${method} handler is not registered via .register`))
+        }
+        if (options.timeout && !pattern.$timeout) { // redefine pattern timeout if transport-specific is set
+          pattern.$timeout = options.timeout
+        }
+        chain.push(wrapper)
+      }
+      return chain
+    }, [])
+    executionChain.push(service)
+
+    const slowTimeoutWarning = this.config.slowPatternTimeout || pattern.$slow
+    const isLocalPattern = ld.isFunction(service)
+    const timeout = pattern.$timeout || this.config.timeout
+
+    if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
+      executionChain.push(pattern => {
+        const executionTime = calcDelay(actStarted, false)
+        if (executionTime > slowTimeoutWarning) {
+          this.log.warn(`pattern executed in ${executionTime}ms: ${stringify(pattern)}`)
+        }
+      })
     }
 
-    const executor = () => {
-      return Promise.reduce(chain, (input, [ method, ...parameters]) => method(input, ...parameters), message).catch(internalErrorHandler)
+    // execute found chain and return result to client
+    const chainRunner = () => {
+      return Promise.reduce(executionChain, (input, method) => method(input), pattern)
+        // .catch(err => {
+        //   console.log('????', err)
+        //   // 2do: do something with error
+        // })
     }
 
-    if (immediate) {
-      executor()
+    if (pattern.$nowait && isLocalPattern) {
+      // sometimes client dont want to wait, so we simply launch chain in async mode
+      chainRunner()
       return Promise.resolve()
     }
 
-    if (!timeout) {
-      return executor()
+    if (!timeout) { // no need to handle timeout
+      return chainRunner()
     }
 
     return Promise
-      .resolve(executor())
+      .resolve(chainRunner())
       .timeout(timeout)
       .catch(Promise.TimeoutError, () => {
-        throw new Error(`pattern timeout after ${timeout}ms: ${stringify(message)}`)
+        throw new Error(`pattern timeout after ${timeout}ms: ${stringify(pattern)}`)
       })
-  }
-
-  const getExecutionChain = (message, expressLikeWrappers = []) => {
-    // 1) search all wrappers via pattern-matching-style
-    // 2) execute all wrappers via expressjs-style
-    return pmWrappers.list(message).concat(...expressLikeWrappers).reduce((arr, method) => {
-      if (typeof method !== 'string') { // local function
-        arr.push([ method ])
-      } else { // remote function
-        const [ methodName, ...parameters] = method.split(':')
-        const { wrapper, options } = registeredWrappers[methodName]
-        if (!wrapper) {
-          throw new Error(`looks like ${method} handler is not registered via .register method`)
-        }
-        if (options.timeout) { // update timeout on external transport
-          message.$timeout = options.timeout
-        }
-        arr.push([ wrapper, ...parameters ])
-      }
-      return arr
-    }, [])
-  }
-
-  return {
-
-    timeout: config.timeout,
-
-    // default logger for bishop instances
-    log: logger,
-
-    // keep all named routes here
-    routes: {},
-
-    // loaded remote connectors for further usage
-    transport: {},
-
-    register(name, wrapper, options = {}) {
-      const [ externalMethodName ] = name.split(':')
-      if (registeredWrappers[externalMethodName]) {
-        throw new Error(`wrapper ${externalMethodName} already registered`)
-      }
-      registeredWrappers[name] = { wrapper, options }
-    },
-
-    // registered wrapper will be executed on pattern match before .act will emit
-    wrap(sourcePattern, wrapper) {
-      if (!wrapper || !isFunction(wrapper)) {
-        throw new Error('.wrap: please pass callback as last argument')
-      }
-      pmWrappers.add(
-        objectify(sourcePattern),
-        wrapper
-      )
-    },
-
-    // append handler for route (local or remote)
-    // .add(route, function) // execute local payload
-    // .add(route, 'wrapper', wrapper, 'transportname') // execute payload using transport
-    // .add(route, 'transportname') // execute payload using transport
-    add(sourcePattern, ...wrappers) {
-      const handler = wrappers[wrappers.length - 1] || throwError(new Error('.add: please pass handler as last argument'))
-      const pattern = objectify(sourcePattern)
-
-      if (config.forbidSameRouteNames) { // ensure same route not yet exists
-        const foundPattern = pm.lookup(pattern, { patterns: true })
-        if(ld.isEqual(foundPattern, pattern)) {
-          throwError(new Error(`.forbidSameRouteNames option is enabled, and pattern already exists: ${stringify(pattern)}`))
-        }
-      }
-
-      const isLocalPattern = isFunction(handler)
-      const data = { wrappers }
-
-      pm.add(pattern, data)
-      if (isLocalPattern) {
-        pmLocal.add(pattern, data)
-      }
-    },
-
-    remove(sourcePattern) {
-      const pattern = objectify(sourcePattern)
-      pm.remove(pattern)
-      pmLocal.remove(pattern)
-    },
-
-    // $timeout - redefine global request timeout for network requests
-    // $slow - emit warning if pattern executing more than $slow ms
-    // $local - search only in local patterns, skip remote transporting
-    // $nowait - resolve immediately (in case of local patters), or then message is sent (in case of transports)
-    async act(sourcePattern, ...payloads) {
-      if (!sourcePattern) {
-        throw new Error('.act: please specify at least one search pattern')
-      }
-      const actBeginTimestamp = calcDelay(null, false)
-      const pattern = ld.assign({}, objectify(sourcePattern), ...payloads)
-
-      const matchResult = (pattern.$local ? pmLocal : pm).lookup(pattern, { patterns: true, payloads: true })
-
-      if (!matchResult) {
-        throw new Error(`pattern not found: ${stringify(pattern)}`)
-      }
-
-      const { wrappers } = matchResult.payload // array of wrappers for specified pattern
-      const handler = wrappers[wrappers.length - 1] // last wrapper is required business-logic
-      const isLocalPattern = isFunction(handler)
-
-      // create execution chain
-      const chain = await getExecutionChain(pattern, wrappers)
-
-      const slowTimeoutWarning = config.slowPatternTimeout || pattern.$slow
-      if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
-        chain.push([ emitSlowTimeoutWarning, actBeginTimestamp, slowTimeoutWarning, pattern ])
-      }
-
-      return executeChain(pattern, chain, {
-        // in case of local pattern - resolve immediately and emit error on fail
-        // in case of transports - they should respect $nowait flag and emit errors manually
-        immediate: isLocalPattern && pattern.$nowait,
-        ctx: this
-      })
-    },
-
-    // load plugin, module etc
-    async use(path, options) {
-      const plugin = requirePlugin(path)
-      if (!isFunction(plugin)) {
-        throw new Error('unable to load plugin: function expected, but not found')
-      }
-
-      const data = await plugin(this, options)
-      if (!data) { return } // this plugin dont return any suitable data
-      const { name, routes } = data
-
-      switch (data.type) {
-
-        case 'transport': // transport connection
-          if (!name) { throw new Error('transport plugins should return .name property') }
-          this.transport[name] = data
-          // register transport as local wrapper
-          this.register(name, this.transport[name].send, options)
-          break
-
-        default: // plugin with business logic
-          if (name && routes) {
-            this.routes[name] = this.routes[name] || {}
-            ld.assign(this.routes[name], routes)
-          }
-      }
-      return data
-    },
-
-    // connect to all remote instances
-    async connect() {
-      await runMethodsParallel(this.transport, 'connect')
-    },
-
-    // disconnect from all remote instances
-    async disconnect() {
-      await runMethodsParallel(this.transport, 'disconnect')
-    },
-
-    // listen all transports
-    async listen() {
-      await runMethodsParallel(this.transport, 'listen')
-    },
-
-    // disconnect from all transports
-    async close() {
-      await runMethodsParallel(this.transport, 'close')
     }
-  }
 }
 
 module.exports = Bishop
