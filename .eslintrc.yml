@@ -10,6 +10,7 @@ env:
   es6: true
 rules:
   complexity: [ warn, 10 ]
+  semi: [ error, never ]
   no-case-declarations: warn
   no-console: off
   new-cap: off

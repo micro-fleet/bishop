@@ -9,17 +9,11 @@ test('default behaviour', async t => {
   await bishop.use(plugin)
 
   t.throws(bishop.act(bishop.routes.test.userError), /user error/)
-  t.throws(bishop.act(bishop.routes.test.customError), err => {
-    t.true(err instanceof Error)
-    t.is(err.name, 'CustomError')
-    return true
-  })
+  await bishop.act(bishop.routes.test.customError)
 })
 
 test('catch TypeError errors', async t => {
-  const bishop = require(process.env.PWD)({
-    terminateOn: []
-  })
+  const bishop = require(process.env.PWD)()
   await bishop.use(plugin)
   t.throws(bishop.act(bishop.routes.test.typeError), TypeError)
 })
@@ -27,10 +21,9 @@ test('catch TypeError errors', async t => {
 test('custom error handler', async t => {
   const bishop = require(process.env.PWD)({
     terminateOn: err => {
-      return err.name === 'CustomError'
+      t.is(err.name, 'CustomError')
     }
   })
   await bishop.use(plugin)
-  t.throws(bishop.act(bishop.routes.test.userError), /user error/)
   await bishop.act(bishop.routes.test.customError) // should be muted
 })

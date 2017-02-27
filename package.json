@@ -1,10 +1,10 @@
 {
   "name": "bishop",
-  "version": "4.0.0",
+  "version": "4.0.2",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
-    "test": "eslint src && node --harmony-async-await ./node_modules/.bin/ava"
+    "test": "eslint src && ava"
   },
   "repository": {
     "type": "git",
@@ -16,12 +16,12 @@
     "url": "https://github.com/afoninsky/bishop/issues"
   },
   "engines": {
-    "node": ">=7.0.0"
+    "node": ">=7.6.0"
   },
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
     "ava": "^0.17.0",
-    "coveralls": "^2.11.15",
+    "coveralls": "^2.11.16",
     "eslint": "^3.14.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
     "nyc": "^10.1.2"

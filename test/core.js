@@ -16,10 +16,9 @@ test('use plugin with patterns', async t => {
   const bishop = require(process.env.PWD)()
 
   const testroute = 'role:test,act:plugin'
-  const plugin = (instance, arg1, arg2) => {
+  const plugin = (instance, options) => {
     t.is(instance, bishop)
-    t.is(arg1, 'arg1')
-    t.is(arg2, 'arg2')
+    t.is(options, 'arg1')
 
     instance.add(testroute, () => { return { result: 'plugin' }})
     return {
@@ -28,7 +27,7 @@ test('use plugin with patterns', async t => {
     }
   }
 
-  const config = await bishop.use(plugin, 'arg1', 'arg2')
+  const config = await bishop.use(plugin, 'arg1')
   t.is(config.name, 'testplugin')
   t.is(bishop.routes.testplugin.testroute, testroute)
   t.deepEqual(await bishop.act(bishop.routes.testplugin.testroute), { result: 'plugin' })

@@ -26,6 +26,10 @@ module.exports = {
 
   calcDelay,
 
+  throwError(err) {
+    throw err
+  },
+
   requirePlugin(input) {
     if (!ld.isString(input)) { return input }
     return require(input)
@@ -47,6 +51,10 @@ module.exports = {
       return prev
     }, {})
     return ld.extend(obj, extend)
+  },
+
+  stringify(obj) {
+    return JSON.stringify(obj)
   },
 
   // add debug information into message
