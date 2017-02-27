@@ -44,7 +44,7 @@ const Bishop = (_config = {}, logger = console) => {
   const emitSlowTimeoutWarning = (patternStarted, slowTimeout, pattern) => {
     const executionTime = calcDelay(patternStarted, false)
     if (executionTime > slowTimeout) {
-      this.log.warn(`pattern executed in ${executionTime}ms: ${JSON.stringify(pattern)}`)
+      logger.warn(`pattern executed in ${executionTime}ms: ${JSON.stringify(pattern)}`)
     }
   }
 
