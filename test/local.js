@@ -46,10 +46,6 @@ test('invalid parameters', async t => {
   t.throws(() => {
     bishop.add('role: test, act: not-registered')
   }, /pass pattern handler/)
-
-  bishop.chainPatternMatcher.add({ role: 'test' }, 'not-registered')
-  bishop.add('role: test, act: not-registered', () => {})
-  t.throws(bishop.act('role: test, act: not-registered'), /handler is not registered/)
 })
 
 test('check $timeout', async t => {
@@ -98,4 +94,45 @@ test('check $slow', async t => {
   t.is(loggedMessage, undefined)
   t.is(await bishop.act('role:test, act:slow, $slow: 10'), 'slow success')
   t.regex(loggedMessage, /pattern executed in/)
+})
+
+test('.register', async t => {
+  const bishop = new Bishop()
+  bishop.register('role:test', message => {
+    message.chain.push('step1')
+    return message
+  })
+  bishop.register('role:test, act:register', message => {
+    message.chain.push('step2')
+    return message
+  })
+  bishop.add('role:test, act:register', message => {
+    message.chain.push('step3')
+    return message.chain
+  })
+  const result = await bishop.act('role:test, act:register, other:option', {
+    chain: []
+  })
+  t.deepEqual(result, [ 'step1', 'step2', 'step3' ])
+})
+
+test('remote wrappers', async t => {
+  const bishop = new Bishop()
+  const transportName = 'remote-test'
+  let incomingMessage
+  bishop.addTransport(transportName, async message => {
+    incomingMessage = message
+    return 'success'
+  }, {
+    timeout: 100
+  })
+  bishop.add('role:test, act:remote', transportName)
+
+  const result = await bishop.act('role:test, act:remote')
+  t.deepEqual(incomingMessage, { role: 'test', act: 'remote', '$timeout': 100 })
+  t.is(result, 'success')
+})
+
+test('error handlers', async t => {
+
 })
