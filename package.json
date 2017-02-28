@@ -21,7 +21,6 @@
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
     "ava": "^0.17.0",
-    "coveralls": "^2.11.16",
     "eslint": "^3.14.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
     "nyc": "^10.1.2"
@@ -39,8 +38,7 @@
   },
   "nyc": {
     "include": [
-      "src/**.js",
-      "legacy/**.js"
+      "src/**.js"
     ]
   }
 }

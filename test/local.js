@@ -59,7 +59,7 @@ test('check $timeout', async t => {
   })
 
   t.is(await bishop.act('role:test ,act:timeout'), 'success' )
-  t.throws(bishop.act('role:test, act:timeout', { delay: timeout + 50 }), /pattern timeout after/)
+  t.throws(bishop.act('role:test, act:timeout', { delay: timeout + 100 }), /pattern timeout after/)
 })
 
 test('check $nowait', async t => {
