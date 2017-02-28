@@ -133,6 +133,36 @@ test('remote wrappers', async t => {
   t.is(result, 'success')
 })
 
-test('error handlers', async t => {
+test('use plugin', async t => {
+  const bishop = new Bishop()
+  const pluginOptions = {
+    some: 'options'
+  }
+  const plugin = async (service, options) => {
+    t.deepEqual(options, pluginOptions)
+    service.add('role:test, act:plugin', () => 'success')
+    return 'plugin'
+  }
+  t.is(await bishop.use(plugin, pluginOptions), 'plugin')
+  t.is(await bishop.act('role:test, act:plugin'), 'success')
+})
 
+test('error handlers', async t => {
+  const defaultBishop = new Bishop()
+  defaultBishop.add('role:test, act:error', async () => {
+    throw new Error('test error')
+  })
+  t.throws(defaultBishop.act('role:test, act:error'), /test error/)
+
+  let customError
+  const customBishop = new Bishop({
+    onError: err => {
+      customError = err
+    }
+  })
+  customBishop.add('role:test, act:error', async () => {
+    throw new Error('custom error')
+  })
+  await customBishop.act('role:test, act:error')
+  t.is(customError.message, 'custom error')
 })

@@ -16,7 +16,7 @@ const defaultConfig = {
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
   // default behaviour on error - emit exception
-  onError: null,
+  onError: throwError,
   // default logger instance
   logger: console
 }
@@ -85,6 +85,14 @@ class Bishop {
     this.localPatternMatcher.remove(pattern)
   }
 
+  // load module with routes
+  use(plugin, options) {
+    if (!ld.isFunction(plugin)) {
+      throwError(new Error('.use: function expected, but not found'))
+    }
+    return plugin(this, options)
+  }
+
   // find first matching service by pattern, and execute it
   //  $timeout - redefine global request timeout for network requests
   //  $slow - emit warning if pattern executing more than $slow ms
@@ -141,10 +149,7 @@ class Bishop {
     // execute found chain and return result to client
     const chainRunner = () => {
       return Promise.reduce(executionChain, (input, method) => method(input), pattern)
-        // .catch(err => {
-        //   console.log('????', err)
-        //   // 2do: do something with error
-        // })
+        .catch(this.onError)
     }
 
     if (pattern.$nowait) {
