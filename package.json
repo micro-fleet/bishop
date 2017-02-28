@@ -20,7 +20,7 @@
   },
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
-    "ava": "^0.17.0",
+    "ava": "^0.18.2",
     "eslint": "^3.14.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
     "nyc": "^10.1.2"
