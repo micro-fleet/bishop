@@ -11,16 +11,6 @@ const calcDelay = (offset, inNanoSeconds = true) => {
   })()
   return offset ? now - offset : now
 }
-//
-// const requireCatchError = path => {
-//   try {
-//     return require(path)
-//   } catch(err) {
-//     if (err.code === 'MODULE_NOT_FOUND' && err.message.includes(path)) {
-//       err.message = ''
-//     }
-//   }
-// }
 
 module.exports = {
 
@@ -28,11 +18,6 @@ module.exports = {
 
   throwError(err) {
     throw err
-  },
-
-  requirePlugin(input) {
-    if (!ld.isString(input)) { return input }
-    return require(input)
   },
 
   // model:comments,target:resource,action:create => { model: 'comments', target: 'resource', action: 'create' }
@@ -55,67 +40,6 @@ module.exports = {
 
   stringify(obj) {
     return JSON.stringify(obj)
-  },
-
-  // add debug information into message
-  // createDebugger(_config, message = {}) {
-  //
-  //   const config = ld.defaults(_config, {
-  //     field: '$debug',
-  //     enabled: false,
-  //     logger: null
-  //   })
-  //   const start = calcDelay()
-  //   const isDebugDisabled = !config.enabled
-  //   const log = config.logger.debug ? config.logger.debug.bind(config.logger) : console.log
-  //   const storage = (() => {
-  //     if (isDebugDisabled) { return [] }
-  //     if (!config.field) {
-  //       if (!ld.isArray(message)) {
-  //         throw new Error('if .field is falsy, then array expected as second parameter')
-  //       }
-  //       return message
-  //     }
-  //     if (!ld.isPlainObject(message)) {
-  //       throw new Error('if .field is set, then object expected as second parameter')
-  //     }
-  //     return message[config.field] = []
-  //   })()
-  //
-  //   const tracks = {}
-  //
-  //   return {
-  //     push: isDebugDisabled ? ld.noop : (name, payload = null) => {
-  //       const offset = calcDelay(start)
-  //       const data = { name, payload, offset }
-  //       storage.push(data)
-  //       log(data)
-  //     },
-  //     track: isDebugDisabled ? ld.noop : (name, payload = null) => {
-  //       if (tracks[name]) {
-  //         throw new Error(`[debug] ${name}: already tracking`)
-  //       }
-  //       const internalOffset = calcDelay()
-  //       tracks[name] = { name, payload, internalOffset }
-  //     },
-  //     trackEnd: isDebugDisabled ? ld.noop : (name, result = null) => {
-  //       if (!tracks[name]) {
-  //         throw new Error(`[debug] ${name}: not yet tracking`)
-  //       }
-  //       tracks[name].offset = calcDelay(start)
-  //       tracks[name].internalOffset = calcDelay(tracks[name].internalOffset)
-  //       if (result) {
-  //         tracks[name].result = result
-  //       }
-  //       storage.push(tracks[name])
-  //       log(tracks[name])
-  //       delete tracks[name]
-  //     }
-  //   }
-  // },
-
-  isFunction(func) {
-    return typeof func === 'function'
   },
   //
   // async runMethodsParallel(object, methodName) {
