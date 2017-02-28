@@ -31,11 +31,16 @@ class Bishop {
     this.globalPatternMatcher = bloomrun({ indexing: config.matchOrder })
     this.localPatternMatcher = bloomrun({ indexing: config.matchOrder })
     this.chainPatternMatcher = bloomrun({ indexing: config.matchOrder })
+
+    this.registeredWrappers = {}
   }
 
   // register service for specified pattern
   add(_pattern, service) {
     const pattern = objectify(_pattern)
+    if (!service) {
+      throwError(new Error('please pass pattern handler as last parameter'))
+    }
 
     if (this.config.forbidSameRouteNames) { // ensure same route not yet exists
       const foundPattern = this.globalPatternMatcher.lookup(pattern, { patterns: true })
@@ -45,7 +50,7 @@ class Bishop {
     }
 
     this.globalPatternMatcher.add(pattern, service) // add service to global pattern matcher
-    if (ld.isFunction(service)) { // also register service as local function (opposite to remote network calls)
+    if (pattern.$local || ld.isFunction(service)) { // also register service as local function (opposite to remote network calls)
       this.localPatternMatcher.add(pattern, service)
     }
   }
@@ -62,27 +67,28 @@ class Bishop {
   //  $slow - emit warning if pattern executing more than $slow ms
   //  $local - search only in local patterns, skip remote transports
   //  $nowait - resolve immediately (in case of local patterns), or then message is sent (in case of transports)
-  act(_pattern, ...payloads) {
+  async act(_pattern, ...payloads) {
     if (!_pattern) {
-      throw new Error('.act: please specify at least one search pattern')
+      return throwError(new Error('.act: please specify at least one search pattern'))
     }
     const actStarted = calcDelay(null, false)
     const pattern = ld.assign({}, objectify(_pattern), ...payloads)
     const patternMatcher = pattern.$local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
-      return Promise.reject(new Error(`pattern not found: ${stringify(pattern)}`))
+      return throwError(new Error(`pattern not found: ${stringify(pattern)}`))
     }
     // result.pattern = found pattern
     const service = result.payload
 
     // travel over all patterns and return pass-thru chain of service calls
     // 2do: think about caching
+
     const executionChain = this.chainPatternMatcher.list(pattern).reduce((chain, method) => {
       if (typeof method !== 'string') { // local function is registered
         chain.push(method)
       } else { // remote function expected: should look for registered transport wrapper and return ready call
-        const { wrapper, options } = this.registeredWrappers[method]
+        const { wrapper, options } = this.registeredWrappers[method] || {}
         if (!wrapper) {
           throwError(new Error(`looks like ${method} handler is not registered via .register`))
         }
@@ -95,16 +101,17 @@ class Bishop {
     }, [])
     executionChain.push(service)
 
-    const slowTimeoutWarning = this.config.slowPatternTimeout || pattern.$slow
-    const isLocalPattern = ld.isFunction(service)
+    const slowTimeoutWarning = this.config.slowPatternTimeout || parseInt(pattern.$slow, 10)
+    const isLocalPattern = pattern.$local || ld.isFunction(service)
     const timeout = pattern.$timeout || this.config.timeout
 
     if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
-      executionChain.push(pattern => {
+      executionChain.push(message => {
         const executionTime = calcDelay(actStarted, false)
         if (executionTime > slowTimeoutWarning) {
           this.log.warn(`pattern executed in ${executionTime}ms: ${stringify(pattern)}`)
         }
+        return message
       })
     }
 
