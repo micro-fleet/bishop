@@ -149,7 +149,7 @@ class Bishop {
     // execute found chain and return result to client
     const chainRunner = () => {
       return Promise.reduce(executionChain, (input, method) => {
-        if (input.$break) { // should break execution and immediately return result
+        if (ld.isObject(input) && input.$break) { // should break execution and immediately return result
           const error = new Promise.CancellationError('$break found')
           error.pattern = input
           throw error
