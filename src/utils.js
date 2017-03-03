@@ -1,5 +1,4 @@
 const ld = require('lodash')
-// const Promise = require('bluebird')
 
 const calcDelay = (offset, inNanoSeconds = true) => {
   const now = (() => {
@@ -12,6 +11,21 @@ const calcDelay = (offset, inNanoSeconds = true) => {
   return offset ? now - offset : now
 }
 
+// 'model:comments, target, action:create' => { model: 'comments', target: /.*/, action: 'create' }
+const text2obj = input => {
+  return input.split(',').reduce((prev, cur) => {
+    let [ key, value ] = cur.trim().split(':')
+    if (typeof value === 'undefined') {
+      value = '/.*/'
+    }
+    const trimmedValue = value.trim()
+    prev[key.trim()] = trimmedValue[0] === '/' ?
+      new RegExp(trimmedValue.slice(1, -1)) :
+      trimmedValue
+    return prev
+  }, {})
+}
+
 module.exports = {
 
   calcDelay,
@@ -20,32 +34,32 @@ module.exports = {
     throw err
   },
 
-  // model:comments,target:resource,action:create => { model: 'comments', target: 'resource', action: 'create' }
-  objectify(input, extend = {}) {
-    if (!ld.isString(input)) { return ld.extend({}, input, extend) }
-
-    const obj = input.split(',').reduce((prev, cur) => {
-      let [ key, value ] = cur.trim().split(':')
-      if (typeof value === 'undefined') {
-        value = '/.*/'
+  // split all patterns into one, extract payload and meta info from it
+  split(...args) {
+    const meta = {}
+    const message = {}
+    const raw = {}
+    args.forEach(item => {
+      const partialPattern = ld.isString(item) ? text2obj(item) : item
+      for (let field in partialPattern) {
+        if (field[0] === '$') { // meta info like $timeout, $debug etc
+          meta[field] = partialPattern[field]
+        } else {
+          message[field] = partialPattern[field]
+        }
+        raw[field] = partialPattern[field]
       }
-      const trimmedValue = value.trim()
-      prev[key.trim()] = trimmedValue[0] === '/' ?
-        new RegExp(trimmedValue.slice(1, -1)) :
-        trimmedValue
-      return prev
-    }, {})
-    return ld.extend(obj, extend)
+    })
+    return [ message, meta, raw ]
   },
 
-  stringify(obj) {
-    return JSON.stringify(obj)
-  },
-  //
-  // async runMethodsParallel(object, methodName) {
-  //   await Promise.map(ld.keys(object), name => {
-  //     const method = object[name][methodName]
-  //     return method && method()
-  //   })
-  // },
+  beautify(obj) {
+    return ld.keys(obj).map(key => {
+      const value = obj[key]
+      if (ld.isPlainObject(value)) {
+        return `${key}:{${ld.keys(value).join(',')}}`
+      }
+      return `${key}:${value.toString()}`
+    }).join(', ')
+  }
 }

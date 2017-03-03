@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { objectify, calcDelay, throwError, stringify } = require('./utils')
+const { calcDelay, throwError, beautify, split } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -36,16 +36,16 @@ class Bishop {
   }
 
   // register service for specified pattern
-  add(_pattern, service) {
-    const pattern = objectify(_pattern)
+  add(message, service) {
     if (!service) {
       throwError(new Error('.add: please pass pattern handler as last parameter'))
     }
+    const [ ,, pattern ] = split(message)
 
     if (this.config.forbidSameRouteNames) { // ensure same route not yet exists
       const foundPattern = this.globalPatternMatcher.lookup(pattern, { patterns: true })
       if(ld.isEqual(foundPattern, pattern)) {
-        throwError(new Error(`.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${stringify(pattern)}`))
+        throwError(new Error(`.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(pattern)}`))
       }
     }
 
@@ -59,8 +59,8 @@ class Bishop {
   }
 
   // register handler which will be executed on pattern matching _before_ target service
-  register(_pattern, service) {
-    const pattern = objectify(_pattern)
+  register(message, service) {
+    const [ ,, pattern ] = split(message)
     if (!service || !ld.isFunction(service)) {
       throwError(new Error('.register: please pass pattern handler as last parameter'))
     }
@@ -79,8 +79,8 @@ class Bishop {
   }
 
   // remove pattern from pattern matcher instance
-  remove(_pattern) {
-    const pattern = objectify(_pattern)
+  remove(message) {
+    const [ ,, pattern ] = split(message)
     this.globalPatternMatcher.remove(pattern)
     this.localPatternMatcher.remove(pattern)
   }
@@ -98,16 +98,16 @@ class Bishop {
   //  $slow - emit warning if pattern executing more than $slow ms
   //  $local - search only in local patterns, skip remote transports
   //  $nowait - resolve immediately (in case of local patterns), or then message is sent (in case of transports)
-  async act(_pattern, ...payloads) {
-    if (!_pattern) {
+  async act(message, ...payloads) {
+    if (!message) {
       return throwError(new Error('.act: please specify at least one search pattern'))
     }
     const actStarted = calcDelay(null, false)
-    const pattern = ld.assign({}, objectify(_pattern), ...payloads)
+    const [ ,, pattern ] = split(message, ...payloads)
     const patternMatcher = pattern.$local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
-      return throwError(new Error(`pattern not found: ${stringify(pattern)}`))
+      return throwError(new Error(`pattern not found: ${beautify(pattern)}`))
     }
     // result.pattern = found pattern
     const service = result.payload
@@ -140,7 +140,7 @@ class Bishop {
       executionChain.push(message => {
         const executionTime = calcDelay(actStarted, false)
         if (executionTime > slowTimeoutWarning) {
-          this.log.warn(`pattern executed in ${executionTime}ms: ${stringify(pattern)}`)
+          this.log.warn(`pattern executed in ${executionTime}ms: ${beautify(pattern)}`)
         }
         return message
       })
@@ -166,7 +166,7 @@ class Bishop {
       .resolve(chainRunner())
       .timeout(timeout)
       .catch(Promise.TimeoutError, () => {
-        throw new Error(`pattern timeout after ${timeout}ms: ${stringify(pattern)}`)
+        throw new Error(`pattern timeout after ${timeout}ms: ${beautify(pattern)}`)
       })
     }
 }
