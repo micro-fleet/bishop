@@ -116,6 +116,22 @@ test('.register', async t => {
   t.deepEqual(result, [ 'step1', 'step2', 'step3' ])
 })
 
+test('.register and break execution', async t => {
+  const bishop = new Bishop()
+  bishop.register('role:test', message => {
+    t.pass()
+    const updatedMessage = Object.assign({}, message, {
+      $break: true
+    })
+    return updatedMessage
+  })
+  bishop.add('role:test, act:final-handler', () => {
+    t.fail('final handler should be skipped with $break flag')
+  })
+  const result = await bishop.act('role:test, act:final-handler')
+  t.deepEqual(result, { role: 'test', act: 'final-handler', '$break': true })
+})
+
 test('remote wrappers', async t => {
   const bishop = new Bishop()
   const transportName = 'remote-test'
