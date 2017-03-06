@@ -1,3 +1,4 @@
+// 2do: test cold start, looks like too slow
 const { test } = require('ava')
 const Bishop = require(process.env.PWD)
 const Promise = require('bluebird')
@@ -49,7 +50,7 @@ test('invalid parameters', async t => {
 })
 
 test('check $timeout', async t => {
-  const timeout = 100
+  const timeout = 200
   const bishop = new Bishop({ timeout })
   bishop.add('role:test, act:timeout', async ({ delay }) => {
     if (delay) {
@@ -57,7 +58,6 @@ test('check $timeout', async t => {
     }
     return 'success'
   })
-
   t.is(await bishop.act('role:test ,act:timeout'), 'success' )
   t.throws(bishop.act('role:test, act:timeout', { delay: timeout + 100 }), /pattern timeout after/)
 })
