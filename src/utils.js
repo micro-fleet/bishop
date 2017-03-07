@@ -60,7 +60,7 @@ module.exports = {
       if (ld.isPlainObject(value)) {
         return `${key}:{${ld.keys(value).join(',')}}`
       }
-      return `${key}:${(value || '*').toString()}`
+      return value ? `${key}:${value.toString()}` : key
     }).join(', ')
   }
 }
