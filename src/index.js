@@ -1,6 +1,6 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { calcDelay, throwError, beautify, split } = require('./utils')
+const { calcDelay, throwError, beautify, split, ensureIsFuction, objectify } = require('./utils')
 const Promise = require('bluebird')
 
 // default options for bishop instance
@@ -30,9 +30,13 @@ class Bishop {
 
     this.globalPatternMatcher = bloomrun({ indexing: config.matchOrder })
     this.localPatternMatcher = bloomrun({ indexing: config.matchOrder })
-    this.chainPatternMatcher = bloomrun({ indexing: config.matchOrder })
+    this.beforePatternMatcher = bloomrun({ indexing: config.matchOrder })
+    this.afterPatternMatcher = bloomrun({ indexing: config.matchOrder })
 
-    this.registeredWrappers = {} // transportName: { wrapper, options }
+    this.beforeGlobalHandlers = []
+    this.afterGlobalHandlers = []
+
+    this.transports = {} // transportName: { wrapper, options }
   }
 
   // register service for specified pattern
@@ -58,24 +62,72 @@ class Bishop {
     }
   }
 
-  // register handler which will be executed on pattern matching _before_ target service
-  register(message, service) {
-    const [ ,, pattern ] = split(message)
-    if (!service || !ld.isFunction(service)) {
-      throwError(new Error('.register: please pass pattern handler as last parameter'))
+/**
+.register('default', handler)
+.register('before', handler)
+.register('before', pattern, handler)
+.register('after', handler)
+.register('after', pattern, handler)
+.register('remote', name, handler, options)
+ */
+  register() {
+    const [ type, ...args ] = arguments
+
+    if (type === 'default') { // default handler will emit if none patterns found
+      const [ service ] = args
+      if (ld.isFunction(service)) {
+        this.localPatternMatcher.default(service)
+      }
+      this.globalPatternMatcher.default(service)
+      return
     }
-    this.chainPatternMatcher.add(pattern, service)
+
+    if (type === 'before') {
+      const [ arg1, arg2 ] = args
+      if (!arg2) {
+        this.beforeGlobalHandlers.push(ensureIsFuction(arg1)) // service
+      } else {
+        this.beforePatternMatcher.add(objectify(arg1), ensureIsFuction(arg2)) // pattern, service
+      }
+      return
+    }
+
+    if (type === 'after') {
+      const [ arg1, arg2 ] = args
+      if (!arg2) {
+        this.afterGlobalHandlers.push(ensureIsFuction(arg1)) // service
+      } else {
+        this.afterPatternMatcher.add(objectify(arg1), ensureIsFuction(arg2)) // patter, service
+      }
+      return
+    }
+
+    if (type === 'remote') { // register remote endpoint
+      const [ name, wrapper, options = {} ] = args
+      if (this.transports[name]) {
+        throwError(new Error(`.register remote: ${name} already exists`))
+      }
+      this.transports[name] = {
+        wrapper: ensureIsFuction(wrapper, '.register remote: please pass valid Promise as second paramerer'),
+        options: options
+      }
+      return
+    }
+    // backward compatiblity
+    return this._register(...arguments)
   }
 
-  // register remote endpoint
+  // register handler which will be executed on pattern matching _before_ target service
+  _register(message, service) {
+    const [ ,, pattern ] = split(message)
+    this.beforePatternMatcher.add(pattern,
+      ensureIsFuction(service, '.register: please pass pattern handler as last parameter')
+    )
+  }
+
+  // backward compatiblity
   addTransport(name, wrapper, options = {}) {
-    if (this.registeredWrappers[name]) {
-      throwError(new Error(`.addTransport: ${name} already exists`))
-    }
-    if (!ld.isFunction(wrapper)) {
-      throwError(new Error('.addTransport: please pass valid Promise as second paramerer'))
-    }
-    this.registeredWrappers[name] = { wrapper, options }
+    return this.register('remote', name, wrapper, options)
   }
 
   // remove pattern from pattern matcher instance
@@ -87,9 +139,7 @@ class Bishop {
 
   // load module with routes
   use(plugin, options) {
-    if (!ld.isFunction(plugin)) {
-      throwError(new Error('.use: function expected, but not found'))
-    }
+    ensureIsFuction(plugin, '.use: function expected, but not found')
     return plugin(this, options)
   }
 
@@ -114,7 +164,7 @@ class Bishop {
 
     // travel over all patterns and return pass-thru chain of service calls
     // 2do: think about caching
-    const executionChain = this.chainPatternMatcher.list(pattern).reverse()
+    const executionChain = this.beforePatternMatcher.list(pattern).reverse()
 
     // add service endpoint
     const endpoint = (() => {
@@ -122,7 +172,7 @@ class Bishop {
         return service
       }
       // link to external transport
-      const { wrapper, options } = this.registeredWrappers[service] || {}
+      const { wrapper, options } = this.transports[service] || {}
       if (!wrapper) {
         throwError(new Error(`looks like ${service} handler is not registered via .addTransport`))
       }

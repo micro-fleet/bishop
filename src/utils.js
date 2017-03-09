@@ -34,6 +34,10 @@ module.exports = {
     throw err
   },
 
+  objectify(obj) {
+    return ld.isString(obj) ? text2obj(obj) : obj
+  },
+
   // split all patterns into one, extract payload and meta info from it
   split(...args) {
     // 2do: pass meta info in additional channel (not payload)
@@ -62,5 +66,12 @@ module.exports = {
       }
       return value ? `${key}:${value.toString()}` : key
     }).join(', ')
+  },
+
+  ensureIsFuction(func, message = 'function expected') {
+    if (!func || !ld.isFunction(func)) {
+      throw new Error(message)
+    }
+    return func
   }
 }
