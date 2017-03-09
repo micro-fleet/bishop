@@ -181,7 +181,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     executionChain.push(
       ...this.afterPatternMatcher.list(pattern),
-      ...this.afterGlobalHandlers,
+      ...this.afterGlobalHandlers
     )
 
     const slowTimeoutWarning = this.config.slowPatternTimeout || parseInt(pattern.$slow, 10)
