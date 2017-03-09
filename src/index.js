@@ -63,7 +63,7 @@ class Bishop {
   }
 
 /**
-.register('default', handler)
+WARN: register('before|after', pattern, handler) order not guaranteed
 .register('before', handler)
 .register('before', pattern, handler)
 .register('after', handler)
@@ -72,15 +72,6 @@ class Bishop {
  */
   register() {
     const [ type, ...args ] = arguments
-
-    if (type === 'default') { // default handler will emit if none patterns found
-      const [ service ] = args
-      if (ld.isFunction(service)) {
-        this.localPatternMatcher.default(service)
-      }
-      this.globalPatternMatcher.default(service)
-      return
-    }
 
     if (type === 'before') {
       const [ arg1, arg2 ] = args
@@ -117,6 +108,7 @@ class Bishop {
     return this._register(...arguments)
   }
 
+  // 2do: remove, backward compatiblity
   // register handler which will be executed on pattern matching _before_ target service
   _register(message, service) {
     const [ ,, pattern ] = split(message)
@@ -125,7 +117,7 @@ class Bishop {
     )
   }
 
-  // backward compatiblity
+  // 2do: remove, backward compatiblity
   addTransport(name, wrapper, options = {}) {
     return this.register('remote', name, wrapper, options)
   }
@@ -162,9 +154,13 @@ class Bishop {
     // result.pattern = found pattern
     const service = result.payload
 
+    // 2do: think about execution chain caching
     // travel over all patterns and return pass-thru chain of service calls
-    // 2do: think about caching
-    const executionChain = this.beforePatternMatcher.list(pattern).reverse()
+
+    const executionChain = [
+      ...this.beforeGlobalHandlers,
+      ...this.beforePatternMatcher.list(pattern).reverse()
+    ]
 
     // add service endpoint
     const endpoint = (() => {
@@ -182,6 +178,11 @@ class Bishop {
       return wrapper
     })()
     executionChain.push(endpoint)
+
+    executionChain.push(
+      ...this.afterPatternMatcher.list(pattern),
+      ...this.afterGlobalHandlers,
+    )
 
     const slowTimeoutWarning = this.config.slowPatternTimeout || parseInt(pattern.$slow, 10)
     const timeout = pattern.$timeout || this.config.timeout

@@ -163,6 +163,24 @@ test('use plugin', async t => {
   t.is(await bishop.act('role:test, act:plugin'), 'success')
 })
 
+test('complete execution chain using .register', async t => {
+  const bishop = new Bishop()
+  const add2message = item => message => {
+    message.item.push(item)
+    return message
+  }
+  bishop.add('role:test, act:chain, subitem: true', add2message('normal action'))
+  bishop.register('before', add2message('step #1'))
+  bishop.register('before', add2message('step #2'))
+  bishop.register('after', 'role:test, act:chain', add2message('step #5'))
+  bishop.register('after', 'role:test', add2message('step #6'))
+  bishop.register('after', add2message('step #7'))
+  bishop.register('before', 'role:test', add2message('step #3'))
+  bishop.register('before', 'role:test, act:chain', add2message('step #4'))
+  const { item } = await bishop.act('role:test, act:chain, subitem: true', { item: [] })
+  t.deepEqual(item, [ 'step #1', 'step #2', 'step #3', 'step #4', 'normal action', 'step #5', 'step #6', 'step #7' ])
+})
+
 test('error handlers', async t => {
   const defaultBishop = new Bishop()
   defaultBishop.add('role:test, act:error', async () => {
