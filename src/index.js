@@ -138,7 +138,11 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   //  $slow - emit warning if pattern executing more than $slow ms
   //  $local - search only in local patterns, skip remote transports
   //  $nowait - resolve immediately (in case of local patterns), or then message is sent (in case of transports)
-  async act(message, ...payloads) {
+  async act() {
+    return this.actRaw(...arguments).then(({ message }) => message)
+  }
+
+  async actRaw(message, ...payloads) {
     if (!message) {
       return throwError(new Error('.act: please specify at least one search pattern'))
     }
@@ -201,25 +205,29 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         const [ input, headers ] = data
         if (headers.break) { // should break execution and immediately return result
           const error = new Promise.CancellationError('$break found')
-          error.input = input
+          error.message = input
           error.headers = headers
           throw error
         }
         const res = await method(input, headers)
         return [ res, headers ]
       }, [ pattern, headers ])
-      .then(([ pattern ]) =>  pattern )
-      .catch(Promise.CancellationError, err => {
-        const { input } = err
-        return input
+      .then(([ message, headers ]) => {
+        return { message, headers }
       })
-      .catch(this.onError)
+      .catch(Promise.CancellationError, err => {
+        const { message, headers } = err
+        return { message, headers }
+      })
+      .catch(err => {
+        return { message: this.onError(err), headers }
+      })
     }
 
     if (headers.nowait) {
       // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunner()
-      return Promise.resolve()
+      return Promise.resolve([ null, headers ])
     }
 
     if (!timeout) { // no need to handle timeout
