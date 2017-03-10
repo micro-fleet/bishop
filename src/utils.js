@@ -48,7 +48,7 @@ module.exports = {
       const partialPattern = ld.isString(item) ? text2obj(item) : item
       for (let field in partialPattern) {
         if (field[0] === '$') { // meta info like $timeout, $debug etc
-          meta[field] = partialPattern[field]
+          meta[field.substring(1)] = partialPattern[field]
         } else {
           message[field] = partialPattern[field]
         }

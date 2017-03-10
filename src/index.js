@@ -57,8 +57,6 @@ class Bishop {
 
     if (ld.isFunction(service)) { // also register service as local function (opposite to remote network calls)
       this.localPatternMatcher.add(pattern, service)
-    } else { // this is remote transport - save link to it in global pattern only
-      //
     }
   }
 
@@ -145,13 +143,13 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       return throwError(new Error('.act: please specify at least one search pattern'))
     }
     const actStarted = calcDelay(null, false)
-    const [ ,, pattern ] = split(message, ...payloads)
-    const patternMatcher = pattern.$local ? this.localPatternMatcher : this.globalPatternMatcher
+    const [ pattern, headers, raw ] = split(message, ...payloads)
+    const patternMatcher = headers.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
-      return throwError(new Error(`pattern not found: ${beautify(pattern)}`))
+      return throwError(new Error(`pattern not found: ${beautify(raw)}`))
     }
-    // result.pattern = found pattern
+    headers.pattern = result.pattern // save found pattern in headers
     const service = result.payload
 
     // 2do: think about execution chain caching
@@ -164,7 +162,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     // add service endpoint
     const endpoint = (() => {
-      if(pattern.$local || ld.isFunction(service)) { // local pattern
+      if(headers.local || ld.isFunction(service)) { // local pattern
         return service
       }
       // link to external transport
@@ -172,8 +170,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       if (!wrapper) {
         throwError(new Error(`looks like ${service} handler is not registered via .addTransport`))
       }
-      if (options.timeout && !pattern.$timeout) { // redefine pattern timeout if transport-specific is set
-        pattern.$timeout = options.timeout
+      if (options.timeout && !headers.timeout) { // redefine pattern timeout if transport-specific is set
+        headers.timeout = options.timeout
       }
       return wrapper
     })()
@@ -184,8 +182,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       ...this.afterGlobalHandlers
     )
 
-    const slowTimeoutWarning = this.config.slowPatternTimeout || parseInt(pattern.$slow, 10)
-    const timeout = pattern.$timeout || this.config.timeout
+    const slowTimeoutWarning = this.config.slowPatternTimeout || headers.slow && parseInt(headers.slow, 10)
+    const timeout = headers.timeout || this.config.timeout
 
     if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
       executionChain.push(message => {
@@ -199,22 +197,26 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     // execute found chain and return result to client
     const chainRunner = () => {
-      return Promise.reduce(executionChain, (input, method) => {
-        if (ld.isObject(input) && input.$break) { // should break execution and immediately return result
+      return Promise.reduce(executionChain, async (data, method) => {
+        const [ input, headers ] = data
+        if (headers.break) { // should break execution and immediately return result
           const error = new Promise.CancellationError('$break found')
-          error.pattern = input
+          error.input = input
+          error.headers = headers
           throw error
         }
-        return method(input)
-      }, pattern)
+        const res = await method(input, headers)
+        return [ res, headers ]
+      }, [ pattern, headers ])
+      .then(([ pattern ]) =>  pattern )
       .catch(Promise.CancellationError, err => {
-        const { pattern } = err
-        return pattern
+        const { input } = err
+        return input
       })
       .catch(this.onError)
     }
 
-    if (pattern.$nowait) {
+    if (headers.nowait) {
       // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunner()
       return Promise.resolve()

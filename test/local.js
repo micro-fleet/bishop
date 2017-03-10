@@ -15,11 +15,15 @@ test('match against basic patterns', async t => {
     timeout: null
   })
 
-  bishop.add('role: test, text: plain', () => 'test1')
+  bishop.add('role: test, text: plain', (message, headers) => {
+    t.deepEqual(message, { role: 'test', text: 'plain', other: 'payload' })
+    t.deepEqual(headers, { timeout: '1000', pattern: { role: 'test', text: 'plain' } })
+    return 'test1'
+  })
   bishop.add({ role: 'test', text: 'object' }, () => 'test2')
 
-  t.is(await bishop.act('role: test', { text: 'plain', other: 'payload' }), 'test1')
-  t.is(await bishop.act('role: test, text: object'), 'test2')
+  t.is(await bishop.act('role: test, $timeout: 1000', { text: 'plain', other: 'payload' }), 'test1')
+  t.is(await bishop.act('role: test, text: object, $timeout: 1000'), 'test2')
 })
 
 test('check .forbidSameRouteNames option', async t => {
@@ -118,26 +122,25 @@ test('.register', async t => {
 
 test('.register and break execution', async t => {
   const bishop = new Bishop()
-  bishop.register('role:test', message => {
+  bishop.register('role:test', (message, headers) => {
     t.pass()
-    const updatedMessage = Object.assign({}, message, {
-      $break: true
-    })
-    return updatedMessage
+    headers.break = true
+    return message
   })
   bishop.add('role:test, act:final-handler', () => {
     t.fail('final handler should be skipped with $break flag')
   })
   const result = await bishop.act('role:test, act:final-handler')
-  t.deepEqual(result, { role: 'test', act: 'final-handler', '$break': true })
+  t.deepEqual(result, { role: 'test', act: 'final-handler' })
 })
 
 test('remote wrappers', async t => {
   const bishop = new Bishop()
   const transportName = 'remote-test'
   let incomingMessage
-  bishop.addTransport(transportName, async message => {
+  bishop.addTransport(transportName, async (message, headers) => {
     incomingMessage = message
+    t.is(headers.timeout, 100)
     return 'success'
   }, {
     timeout: 100
@@ -145,7 +148,7 @@ test('remote wrappers', async t => {
   bishop.add('role:test, act:remote', transportName)
 
   const result = await bishop.act('role:test, act:remote')
-  t.deepEqual(incomingMessage, { role: 'test', act: 'remote', '$timeout': 100 })
+  t.deepEqual(incomingMessage, { role: 'test', act: 'remote' })
   t.is(result, 'success')
 })
 
