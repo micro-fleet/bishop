@@ -13,8 +13,6 @@ Inspired by [Seneca](http://senecajs.org/).
 
 ## Installing bishop
 
-https://www.npmjs.com/package/bishop-js
-
 `npm install bishop`
 
 `yarn add bishop`

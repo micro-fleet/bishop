@@ -153,7 +153,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     if (!result) {
       return throwError(new Error(`pattern not found: ${beautify(raw)}`))
     }
-    headers.pattern = result.pattern // save found pattern in headers
+    headers.pattern = result.pattern  // save found pattern in headers
+    headers.input = raw               // save incoming message in headers
     const service = result.payload
 
     // 2do: think about execution chain caching

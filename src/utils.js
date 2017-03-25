@@ -40,7 +40,6 @@ module.exports = {
 
   // split all patterns into one, extract payload and meta info from it
   split(...args) {
-    // 2do: pass meta info in additional channel (not payload)
     const meta = {}
     const message = {}
     const raw = {}

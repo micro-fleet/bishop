@@ -17,7 +17,8 @@ test('match against basic patterns', async t => {
 
   bishop.add('role: test, text: plain', (message, headers) => {
     t.deepEqual(message, { role: 'test', text: 'plain', other: 'payload' })
-    t.deepEqual(headers, { timeout: '1000', pattern: { role: 'test', text: 'plain' } })
+    t.is(headers.timeout, '1000')
+    t.deepEqual(headers.pattern, { role: 'test', text: 'plain' })
     return 'test1'
   })
   bishop.add({ role: 'test', text: 'object' }, () => 'test2')
@@ -167,6 +168,7 @@ test('use plugin', async t => {
 })
 
 test('complete execution chain using .register', async t => {
+  t.plan(2)
   const bishop = new Bishop()
   const add2message = item => message => {
     message.item.push(item)
@@ -178,9 +180,13 @@ test('complete execution chain using .register', async t => {
   bishop.register('after', 'role:test, act:chain', add2message('step #5'))
   bishop.register('after', 'role:test', add2message('step #6'))
   bishop.register('after', add2message('step #7'))
+  bishop.register('after', (message, headers) => {
+    t.is(headers.input.otherpayload, 'somedata')
+    return message
+  })
   bishop.register('before', 'role:test', add2message('step #3'))
   bishop.register('before', 'role:test, act:chain', add2message('step #4'))
-  const { item } = await bishop.act('role:test, act:chain, subitem: true', { item: [] })
+  const { item } = await bishop.act('role:test, act:chain, subitem: true', { item: [], otherpayload: 'somedata' })
   t.deepEqual(item, [ 'step #1', 'step #2', 'step #3', 'step #4', 'normal action', 'step #5', 'step #6', 'step #7' ])
 })
 
