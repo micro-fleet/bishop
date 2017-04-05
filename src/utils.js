@@ -44,7 +44,7 @@ module.exports = {
     const message = {}
     const raw = {}
     args.forEach(item => {
-      const partialPattern = ld.isString(item) ? text2obj(item) : item
+      const partialPattern = ld.isString(item) ? text2obj(item) : ld.cloneDeep(item)
       for (let field in partialPattern) {
         if (field[0] === '$') { // meta info like $timeout, $debug etc
           meta[field.substring(1)] = partialPattern[field]
