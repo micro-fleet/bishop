@@ -1,6 +1,7 @@
 const ld = require('lodash')
+const Promise = require('bluebird')
 
-const calcDelay = (offset, inNanoSeconds = true) => {
+function calcDelay(offset, inNanoSeconds = true) {
   const now = (() => {
     if (inNanoSeconds) {
       const [ seconds, nanoseconds ] = process.hrtime()
@@ -12,7 +13,7 @@ const calcDelay = (offset, inNanoSeconds = true) => {
 }
 
 // 'model:comments, target, action:create' => { model: 'comments', target: /.*/, action: 'create' }
-const text2obj = input => {
+function text2obj(input) {
   return input.split(',').reduce((prev, cur) => {
     let [ key, value ] = cur.trim().split(':')
     if (typeof value === 'undefined') {
@@ -26,52 +27,54 @@ const text2obj = input => {
   }, {})
 }
 
+function ensureIsFuction(func, message = 'function expected') {
+  if (!func || !ld.isFunction(func)) {
+    throw new Error(message)
+  }
+  return func
+}
+
+function objectify(obj) {
+  return ld.isString(obj) ? text2obj(obj) : ld.cloneDeep(obj)
+}
+
+
+// split all patterns into one, extract payload and meta info from it
+function split(...args) {
+  const meta = {}
+  const message = {}
+  const raw = {}
+  args.forEach(item => {
+    const partialPattern = objectify(item)
+    for (let field in partialPattern) {
+      if (field[0] === '$') { // meta info like $timeout, $debug etc
+        meta[field.substring(1)] = partialPattern[field]
+      } else {
+        message[field] = partialPattern[field]
+      }
+      raw[field] = partialPattern[field]
+    }
+  })
+  return [ message, meta, raw ]
+}
+
+function beautify(obj) {
+  return ld.keys(obj).map(key => {
+    const value = obj[key]
+    if (ld.isPlainObject(value)) {
+      return `${key}:{${ld.keys(value).join(',')}}`
+    }
+    return value ? `${key}:${value.toString()}` : key
+  }).join(', ')
+}
+
+
 module.exports = {
 
-  calcDelay,
+  calcDelay, ensureIsFuction, objectify, split, beautify,
 
   throwError(err) {
     throw err
-  },
-
-  objectify(obj) {
-    return ld.isString(obj) ? text2obj(obj) : obj
-  },
-
-  // split all patterns into one, extract payload and meta info from it
-  split(...args) {
-    const meta = {}
-    const message = {}
-    const raw = {}
-    args.forEach(item => {
-      const partialPattern = ld.isString(item) ? text2obj(item) : ld.cloneDeep(item)
-      for (let field in partialPattern) {
-        if (field[0] === '$') { // meta info like $timeout, $debug etc
-          meta[field.substring(1)] = partialPattern[field]
-        } else {
-          message[field] = partialPattern[field]
-        }
-        raw[field] = partialPattern[field]
-      }
-    })
-    return [ message, meta, raw ]
-  },
-
-  beautify(obj) {
-    return ld.keys(obj).map(key => {
-      const value = obj[key]
-      if (ld.isPlainObject(value)) {
-        return `${key}:{${ld.keys(value).join(',')}}`
-      }
-      return value ? `${key}:${value.toString()}` : key
-    }).join(', ')
-  },
-
-  ensureIsFuction(func, message = 'function expected') {
-    if (!func || !ld.isFunction(func)) {
-      throw new Error(message)
-    }
-    return func
   },
 
   // convert object { qwe: 'aaa', asd: 'bbb'} to string 'qwe.aaa.asd.bbb' with sorted keys
@@ -81,5 +84,93 @@ module.exports = {
       const value = keyType === 'string' ? pattern[key] : '*'
       return `${key}.${value}`
     }).join('.')
+  },
+
+  registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
+    if (remoteTransportsStorage[name]) {
+      throw new Error(`.register(remote): ${name} already exists`)
+    }
+    remoteTransportsStorage[name] = { options, wrapper }
+  },
+
+  registerInMatcher(matcher, message, payload) {
+    const [ pattern, options ] = ld.isArray(message) ? message : split(message)
+    matcher.add(pattern, [ payload, options ])
+  },
+
+  registerGlobal(globalQueue, payload) {
+    globalQueue.push(payload)
+  },
+
+  throwIfPatternExists(matcher, pattern) {
+    const foundPattern = matcher.lookup(pattern, { patterns: true })
+    if (ld.isEqual(foundPattern, pattern)) {
+      throw new Error(`.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(pattern)}`)
+    }
+  },
+
+  createPayloadWrapper(payload, headers, remoteTransportsStorage) {
+    if(headers.local || ld.isFunction(payload)) { // this method found in local patterns
+      return payload
+    }
+    // thereis a string in payload - redirect to external transport
+    const { wrapper, options } = remoteTransportsStorage[payload] || {}
+    if (!wrapper) {
+      throw new Error(`looks like ${payload} handler is not registered via .register(remote)`)
+    }
+    if (options.timeout && !headers.timeout) { // redefine pattern timeout if transport-specific is set
+      headers.timeout = options.timeout
+    }
+    return wrapper
+  },
+
+  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers) {
+    const actStarted = userTime || calcDelay(null, false)
+    return message => {
+      const executionTime = calcDelay(actStarted, false)
+      if (executionTime > slowTimeoutWarning) {
+        this.log.warn(`pattern executed in ${executionTime}ms: ${beautify(headers.source)}`)
+      }
+      return message
+    }
+  },
+
+  // create cancelable promise from chain of payloads
+  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler }) {
+    // NOTE: `headers` can be modified by chain item
+    return () => {
+      return Promise.reduce(executionChain, (input, chainItemAsync) => {
+        if (headers.break) { // should break execution and immediately return result
+          const error = new Promise.CancellationError('$break found')
+          error.message = input
+          error.headers = headers
+          throw error
+        }
+        return chainItemAsync(input, headers)
+      }, pattern)
+      .then(message => {
+        if (headers.notify) { // notify about success
+
+          // const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
+          // if (this._notifyCache[uniqueEvent]) { return false }
+          // // add handler after pattern to catch result and emit it
+          // this.register('after', pattern, (...params) => {
+          //   this.eventEmitter.emit(uniqueEvent, ...params)
+          //   return params[0] // [ message, headers ]
+          // })
+          // this._notifyCache[uniqueEvent] = true
+          // return true
+          //
+        }
+        return { message, headers }
+      })
+      .catch(Promise.CancellationError, err => { // stop execution chain if `break` event raised
+        const { message, headers } = err
+        return { message, headers }
+      })
+      .catch(err => {
+        return { message: errorHandler(err), headers }
+      })
+    }
   }
 }
