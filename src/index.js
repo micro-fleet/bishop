@@ -1,7 +1,8 @@
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
-const { calcDelay, throwError, beautify, split, ensureIsFuction, objectify } = require('./utils')
+const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
+const { calcDelay, throwError, beautify, split, ensureIsFuction, objectify, routingKeyFromPattern } = require('./utils')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -27,6 +28,16 @@ class Bishop {
     const config = this.config = Object.assign({}, defaultConfig, userConfig)
     this.log = config.logger
     this.onError = config.onError
+
+    // listen incoming events and handle corresponding patterns
+    this.eventEmitter = new EventEmitter2({
+      wildcard: true,
+      delimiter: '.',
+      newListener: false,
+      maxListeners: 10,
+      verboseMemoryLeak: false
+    })
+
 
     this.globalPatternMatcher = bloomrun({ indexing: config.matchOrder })
     this.localPatternMatcher = bloomrun({ indexing: config.matchOrder })
@@ -60,6 +71,23 @@ class Bishop {
     }
   }
 
+  // listen for pattern and execute payload on success
+  follow(message, listener) {
+    const [ ,, pattern ] = split(message)
+    const uniqueEvent = `${routingKeyFromPattern(pattern)}.**`
+
+    // add handler after pattern to catch result and emit it
+    this.register('after', pattern, (...params) => {
+      this.eventEmitter.emit(uniqueEvent, ...params)
+      return params[0] // [ message, headers ]
+    })
+    this.eventEmitter.on(uniqueEvent, listener)
+  }
+
+  unfollow() {
+    throw new Error('not implemented')
+  }
+
 /**
 WARN: register('before|after', pattern, handler) order not guaranteed
 .register('before', handler)
@@ -70,54 +98,33 @@ WARN: register('before|after', pattern, handler) order not guaranteed
  */
   register() {
     const [ type, ...args ] = arguments
+    const [ arg1, arg2, arg3 = {} ] = args
 
-    if (type === 'before') {
-      const [ arg1, arg2 ] = args
-      if (!arg2) {
-        this.beforeGlobalHandlers.push(ensureIsFuction(arg1)) // service
-      } else {
-        this.beforePatternMatcher.add(objectify(arg1), ensureIsFuction(arg2)) // pattern, service
-      }
-      return
-    }
+    switch (type) {
+      case 'before':
+        return arg2 ? this.beforePatternMatcher.add(objectify(arg1), ensureIsFuction(arg2)) // pattern, service
+          : this.beforeGlobalHandlers.push(ensureIsFuction(arg1)) // service
 
-    if (type === 'after') {
-      const [ arg1, arg2 ] = args
-      if (!arg2) {
-        this.afterGlobalHandlers.push(ensureIsFuction(arg1)) // service
-      } else {
-        this.afterPatternMatcher.add(objectify(arg1), ensureIsFuction(arg2)) // patter, service
-      }
-      return
-    }
+      case 'after':
+        return arg2 ? this.afterPatternMatcher.add(objectify(arg1), ensureIsFuction(arg2)) // pattern, service
+          : this.afterGlobalHandlers.push(ensureIsFuction(arg1)) // service
 
-    if (type === 'remote') { // register remote endpoint
-      const [ name, wrapper, options = {} ] = args
-      if (this.transports[name]) {
-        throwError(new Error(`.register remote: ${name} already exists`))
-      }
-      this.transports[name] = {
-        wrapper: ensureIsFuction(wrapper, '.register remote: please pass valid Promise as second paramerer'),
-        options: options
-      }
-      return
+      case 'remote':
+        if (this.transports[arg1]) {
+          throwError(new Error(`.register remote: ${arg1} already exists`))
+        }
+        this.transports[arg1] = {
+          wrapper: ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
+          options: arg3
+        }
+        return
+      default:
+        throw new Error('.register(before|after|remote, ...)')
     }
-    // backward compatiblity
-    return this._register(...arguments)
   }
 
-  // 2do: remove, backward compatiblity
-  // register handler which will be executed on pattern matching _before_ target service
-  _register(message, service) {
-    const [ ,, pattern ] = split(message)
-    this.beforePatternMatcher.add(pattern,
-      ensureIsFuction(service, '.register: please pass pattern handler as last parameter')
-    )
-  }
-
-  // 2do: remove, backward compatiblity
-  addTransport(name, wrapper, options = {}) {
-    return this.register('remote', name, wrapper, options)
+  unregister() {
+    throw new Error('not implemented')
   }
 
   // remove pattern from pattern matcher instance
@@ -173,7 +180,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       // link to external transport
       const { wrapper, options } = this.transports[service] || {}
       if (!wrapper) {
-        throwError(new Error(`looks like ${service} handler is not registered via .addTransport`))
+        throwError(new Error(`looks like ${service} handler is not registered via .register(remote)`))
       }
       if (options.timeout && !headers.timeout) { // redefine pattern timeout if transport-specific is set
         headers.timeout = options.timeout

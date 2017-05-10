@@ -103,11 +103,11 @@ test('check $slow', async t => {
 
 test('.register', async t => {
   const bishop = new Bishop()
-  bishop.register('role:test', message => {
+  bishop.register('before', 'role:test', message => {
     message.chain.push('step1')
     return message
   })
-  bishop.register('role:test, act:register', message => {
+  bishop.register('before', 'role:test, act:register', message => {
     message.chain.push('step2')
     return message
   })
@@ -123,7 +123,7 @@ test('.register', async t => {
 
 test('.register and break execution', async t => {
   const bishop = new Bishop()
-  bishop.register('role:test', (message, headers) => {
+  bishop.register('before', 'role:test', (message, headers) => {
     t.pass()
     headers.break = true
     return message
@@ -139,7 +139,7 @@ test('remote wrappers', async t => {
   const bishop = new Bishop()
   const transportName = 'remote-test'
   let incomingMessage
-  bishop.addTransport(transportName, async (message, headers) => {
+  bishop.register('remote', transportName, async (message, headers) => {
     incomingMessage = message
     t.is(headers.timeout, 100)
     return 'success'
