@@ -71,16 +71,20 @@ class Bishop {
     }
   }
 
-  // listen for pattern and execute payload on success
-  follow(message, listener) {
+  notify(message) {
     const [ ,, pattern ] = split(message)
     const uniqueEvent = `${routingKeyFromPattern(pattern)}.**`
-
     // add handler after pattern to catch result and emit it
     this.register('after', pattern, (...params) => {
       this.eventEmitter.emit(uniqueEvent, ...params)
       return params[0] // [ message, headers ]
     })
+  }
+
+  // listen for pattern and execute payload on success
+  follow(message, listener) {
+    const [ ,, pattern ] = split(message)
+    const uniqueEvent = `${routingKeyFromPattern(pattern)}.**`
     this.eventEmitter.on(uniqueEvent, listener)
   }
 
