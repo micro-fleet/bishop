@@ -1,4 +1,3 @@
-// 2do: test cold start, looks like too slow
 const { test } = require('ava')
 const Bishop = require(process.env.PWD)
 const Promise = require('bluebird')
@@ -181,7 +180,7 @@ test('complete execution chain using .register', async t => {
   bishop.register('after', 'role:test', add2message('step #6'))
   bishop.register('after', add2message('step #7'))
   bishop.register('after', (message, headers) => {
-    t.is(headers.input.otherpayload, 'somedata')
+    t.is(headers.source.otherpayload, 'somedata')
     return message
   })
   bishop.register('before', 'role:test', add2message('step #3'))

@@ -68,22 +68,21 @@ function beautify(obj) {
   }).join(', ')
 }
 
+// convert object { qwe: 'aaa', asd: 'bbb'} to string 'qwe.aaa.asd.bbb' with sorted keys
+function routingKeyFromPattern(pattern) {
+  return Object.keys(pattern).sort().map(key => {
+    const keyType = typeof pattern[key]
+    const value = keyType === 'string' ? pattern[key] : '*'
+    return `${key}.${value}`
+  }).join('.')
+}
 
 module.exports = {
 
-  calcDelay, ensureIsFuction, objectify, split, beautify,
+  calcDelay, ensureIsFuction, objectify, split, beautify, routingKeyFromPattern,
 
   throwError(err) {
     throw err
-  },
-
-  // convert object { qwe: 'aaa', asd: 'bbb'} to string 'qwe.aaa.asd.bbb' with sorted keys
-  routingKeyFromPattern(pattern) {
-    return Object.keys(pattern).sort().map(key => {
-      const keyType = typeof pattern[key]
-      const value = keyType === 'string' ? pattern[key] : '*'
-      return `${key}.${value}`
-    }).join('.')
   },
 
   registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
@@ -99,7 +98,7 @@ module.exports = {
   },
 
   registerGlobal(globalQueue, payload) {
-    globalQueue.push(payload)
+    globalQueue.push([ payload, {} ])
   },
 
   throwIfPatternExists(matcher, pattern) {
@@ -111,7 +110,7 @@ module.exports = {
 
   createPayloadWrapper(payload, headers, remoteTransportsStorage) {
     if(headers.local || ld.isFunction(payload)) { // this method found in local patterns
-      return payload
+      return [ payload, {} ]
     }
     // thereis a string in payload - redirect to external transport
     const { wrapper, options } = remoteTransportsStorage[payload] || {}
@@ -121,46 +120,38 @@ module.exports = {
     if (options.timeout && !headers.timeout) { // redefine pattern timeout if transport-specific is set
       headers.timeout = options.timeout
     }
-    return wrapper
+    return [ wrapper, {} ]
   },
 
-  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers) {
+  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger) {
     const actStarted = userTime || calcDelay(null, false)
     return message => {
       const executionTime = calcDelay(actStarted, false)
       if (executionTime > slowTimeoutWarning) {
-        this.log.warn(`pattern executed in ${executionTime}ms: ${beautify(headers.source)}`)
+        logger.warn(`pattern executed in ${executionTime}ms: ${beautify(headers.source)}`)
       }
       return message
     }
   },
 
   // create cancelable promise from chain of payloads
-  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler }) {
+  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler, globalEmitter }) {
     // NOTE: `headers` can be modified by chain item
     return () => {
-      return Promise.reduce(executionChain, (input, chainItemAsync) => {
+      return Promise.reduce(executionChain, (input, chainItem) => {
+        const [ handlerAsync ] = chainItem
         if (headers.break) { // should break execution and immediately return result
           const error = new Promise.CancellationError('$break found')
           error.message = input
           error.headers = headers
           throw error
         }
-        return chainItemAsync(input, headers)
+        return handlerAsync(input, headers)
       }, pattern)
       .then(message => {
-        if (headers.notify) { // notify about success
-
-          // const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
-          // if (this._notifyCache[uniqueEvent]) { return false }
-          // // add handler after pattern to catch result and emit it
-          // this.register('after', pattern, (...params) => {
-          //   this.eventEmitter.emit(uniqueEvent, ...params)
-          //   return params[0] // [ message, headers ]
-          // })
-          // this._notifyCache[uniqueEvent] = true
-          // return true
-          //
+        if (headers.notify) { // notify global listeners on success
+          const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
+          globalEmitter.emit(uniqueEvent, message, headers)
         }
         return { message, headers }
       })

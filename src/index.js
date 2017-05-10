@@ -159,7 +159,10 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     ]
 
     if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
-      executionChain.push(utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers))
+      utils.registerGlobal(
+        executionChain,
+        utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log)
+      )
     }
 
     if (executionChain.length > this.config.maxExecutionChain) {
@@ -170,7 +173,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       executionChain,
       pattern,
       headers,
-      errorHandler: this.onError
+      errorHandler: this.onError,
+      globalEmitter: this.eventEmitter
     })
 
     if (headers.nowait) { // sometimes client dont want to wait, so we simply launch chain in async mode
