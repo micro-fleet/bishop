@@ -1,6 +1,6 @@
 {
   "name": "bishop",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
@@ -26,6 +26,7 @@
     "nyc": "^10.3.2"
   },
   "dependencies": {
+    "ajv": "^5.0.1",
     "bloomrun": "^3.0.1",
     "bluebird": "^3.4.6",
     "eventemitter2": "^4.1.0",
