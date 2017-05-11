@@ -1,5 +1,32 @@
 const ld = require('lodash')
 const Promise = require('bluebird')
+const Ajv = require('ajv')
+
+const ajv = new Ajv({
+  coerceTypes: 'array',
+  useDefaults: true
+})
+const isHeadersValid = ajv.compile({
+  type: 'object',
+  properties: {
+    timeout: {
+      type: 'number'
+    },
+    slow: {
+      type: 'number'
+    },
+    local: {
+      type: 'boolean'
+    },
+    nowait: {
+      type: 'boolean'
+    },
+    notify: {
+      type: 'boolean'
+    }
+  }
+})
+
 
 function calcDelay(offset, inNanoSeconds = true) {
   const now = (() => {
@@ -37,7 +64,6 @@ function ensureIsFuction(func, message = 'function expected') {
 function objectify(obj) {
   return ld.isString(obj) ? text2obj(obj) : ld.cloneDeep(obj)
 }
-
 
 // split all patterns into one, extract payload and meta info from it
 function split(...args) {
@@ -132,6 +158,18 @@ module.exports = {
       }
       return message
     }
+  },
+
+  normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern}) {
+    const headers = ld.merge({}, addHeaders, actHeaders, {
+      pattern: matchedPattern,
+      source: sourceMessage
+    })
+
+    if (!isHeadersValid(headers)) { // should append defaults, convert values into valid ones etc
+      throw new Error(ajv.errorsText(isHeadersValid.errors))
+    }
+    return headers
   },
 
   // create cancelable promise from chain of payloads

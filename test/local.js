@@ -16,7 +16,7 @@ test('match against basic patterns', async t => {
 
   bishop.add('role: test, text: plain', (message, headers) => {
     t.deepEqual(message, { role: 'test', text: 'plain', other: 'payload' })
-    t.is(headers.timeout, '1000')
+    t.is(headers.timeout, 1000)
     t.deepEqual(headers.pattern, { role: 'test', text: 'plain' })
     return 'test1'
   })

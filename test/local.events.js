@@ -31,7 +31,7 @@ test('event emitting configured from bishop.add', async t => {
 
   bishop.follow('some: pattern, with: arguments', (message, headers) => {
     t.pass()
-    t.is(headers.notify, 'true')
+    t.is(headers.notify, true)
     t.is(message.logic, 'completed')
   })
 

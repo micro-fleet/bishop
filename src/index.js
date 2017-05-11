@@ -141,9 +141,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     const [ payload, addHeaders ] = result.payload
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
-    const headers = ld.merge({}, addHeaders, actHeaders, {
-      pattern: matchedPattern,
-      source: sourceMessage
+    const headers = utils.normalizeHeaders({
+      addHeaders, actHeaders, sourceMessage, matchedPattern
     })
     const slowTimeoutWarning = headers.slow ? parseInt(headers.slow, 10) : this.config.slowPatternTimeout
     const timeout = headers.timeout ? parseInt(headers.timeout, 10) : this.config.timeout
