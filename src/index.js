@@ -110,7 +110,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   }
 
   // load module with routes
-  use(plugin, options) {
+  async use(plugin, options) {
     utils.ensureIsFuction(plugin, '.use: function expected, but not found')
     return plugin(this, options)
   }
@@ -178,7 +178,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     if (headers.nowait) { // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunnerAsync()
-      return Promise.resolve([ null, headers ])
+      return Promise.resolve({ message: undefined, headers })
     }
 
     if (!timeout) { // no need to handle timeout
