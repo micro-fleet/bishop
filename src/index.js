@@ -167,6 +167,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
     const actStarted = utils.calcDelay(null, false)
     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
+
     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {

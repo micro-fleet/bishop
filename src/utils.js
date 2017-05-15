@@ -67,7 +67,7 @@ function calcDelay(offset, inNanoSeconds = true) {
 
 // 'model:comments, target, action:create' => { model: 'comments', target: /.*/, action: 'create' }
 function text2obj(input) {
-  return input.split(',').reduce((prev, cur) => {
+  const output = input.split(',').reduce((prev, cur) => {
     let [ key, value ] = cur.trim().split(':')
     if (typeof value === 'undefined') {
       value = regExpAll.toString()
@@ -78,6 +78,7 @@ function text2obj(input) {
       trimmedValue
     return prev
   }, {})
+  return output
 }
 
 function ensureIsFuction(func, message = 'function expected') {
