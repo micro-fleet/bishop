@@ -32,12 +32,22 @@ const areHeadersValid = ajv.compile({
   }
 })
 
+/**
+ * Send bishop pattern execution event to all listeners
+ */
 function notifyListenersAboutEvent({ message, headers}, transports, globalEmitter) {
   if (!headers.notify) { return }
+
   if (headers.notify.includes('local')) {
     const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
     globalEmitter.emit(uniqueEvent, message, headers)
   }
+
+  return Promise.map(headers.notify, transportName => {
+    if (transportName === 'local') { return }
+    const notifyTransportSubsctibers = transports[transportName].notify
+    return notifyTransportSubsctibers(message, headers)
+  })
 }
 
 function calcDelay(offset, inNanoSeconds = true) {
@@ -130,6 +140,13 @@ module.exports = {
     remoteTransportsStorage[name] = { options, wrapper }
   },
 
+  registerTransport(transportsStorage, name, transportMethods, options) {
+    if (transportsStorage[name]) {
+      throw new Error(`.register(transport): ${name} already exists`)
+    }
+    transportsStorage[name] = Object.assign({}, transportMethods, options)
+  },
+
   registerInMatcher(matcher, message, payload) {
     const [ pattern, options ] = ld.isArray(message) ? message : split(message)
     matcher.add(pattern, [ payload, options ])
@@ -200,7 +217,7 @@ module.exports = {
   },
 
   // create cancelable promise from chain of payloads
-  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler, globalEmitter, transports }) {
+  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler, globalEmitter, transports, log }) {
     // NOTE: `headers` can be modified by chain item
     return () => {
       return Promise.reduce(executionChain, (input, chainItem) => {
@@ -218,7 +235,10 @@ module.exports = {
       })
       .then(async data => {
         if (data.headers.notify) {
-          await notifyListenersAboutEvent(data, transports, globalEmitter)
+          // notify listeners in async mode without block
+          notifyListenersAboutEvent(data, transports, globalEmitter).catch(err => {
+            log.error(err)
+          })
         }
         return data
       })

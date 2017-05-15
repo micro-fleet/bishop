@@ -51,6 +51,7 @@ class Bishop {
 
     this.transports = {} // transportName: { wrapper, [options], [notify] }
     this.notifyableTransportsEnum = [] // transports name able to receive events
+    this.followableTransportsEnum = []
   }
 
   // register payload for specified pattern
@@ -71,8 +72,15 @@ class Bishop {
   // listen for pattern and execute payload on success
   follow(message, listener) {
     const [ pattern ] = utils.split(message)
-    const uniqueEvent = `${utils.routingKeyFromPattern(pattern)}.**`
+
+    // subscribe to local event
+    const uniqueEvent = `**.${utils.routingKeyFromPattern(pattern)}.**`
     this.eventEmitter.on(uniqueEvent, listener)
+
+    // subscribe to events from transports
+    this.followableTransportsEnum.forEach(transportName => {
+      this.transports[transportName].follow(pattern, listener)
+    })
   }
 
 /**
@@ -82,17 +90,30 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 .register('after', handler)
 .register('after', pattern, handler)
 .register('remote', name, handler, options)
+.register('transport', name, instance, [options])
  */
   register(...params) {
     const [ type, arg1, arg2, arg3 ] = params
 
     switch (type) {
-      case 'remote':
+      case 'remote': // backward
         utils.registerRemoteTransport(this.transports, arg1,
           utils.ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
         arg3)
         this.notifyableTransportsEnum = Object.keys(this.transports).filter(name => {
           return this.transports[name].notify // `notify` method exists in transport
+        })
+        this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
+          return this.transports[name].follow // `follow` method exists in transport
+        })
+        return
+      case 'transport':
+        utils.registerTransport(this.transports, arg1, arg2, arg3)
+        this.notifyableTransportsEnum = Object.keys(this.transports).filter(name => {
+          return this.transports[name].notify // `notify` method exists in transport
+        })
+        this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
+          return this.transports[name].follow // `follow` method exists in transport
         })
         return
       case 'before':
@@ -179,7 +200,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       headers,
       errorHandler: this.onError,
       globalEmitter: this.eventEmitter,
-      transports: this.transports
+      transports: this.transports,
+      log: this.log
     })
 
     if (headers.nowait) { // sometimes client dont want to wait, so we simply launch chain in async mode
