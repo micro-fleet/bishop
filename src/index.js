@@ -39,7 +39,6 @@ class Bishop {
       maxListeners: 10,
       verboseMemoryLeak: false
     })
-    this._notifyCache = {}
 
 
     this.globalPatternMatcher = bloomrun({ indexing: config.matchOrder })
@@ -50,7 +49,8 @@ class Bishop {
     this.beforeGlobalHandlers = []
     this.afterGlobalHandlers = []
 
-    this.transports = {} // transportName: { wrapper, options }
+    this.transports = {} // transportName: { wrapper, [options], [notify] }
+    this.notifyableTransportsEnum = [] // transports name able to receive events
   }
 
   // register payload for specified pattern
@@ -88,9 +88,13 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     switch (type) {
       case 'remote':
-        return utils.registerRemoteTransport(this.transports, arg1,
-        utils.ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
+        utils.registerRemoteTransport(this.transports, arg1,
+          utils.ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
         arg3)
+        this.notifyableTransportsEnum = Object.keys(this.transports).filter(name => {
+          return this.transports[name].notify // `notify` method exists in transport
+        })
+        return
       case 'before':
         return arg2 ? utils.registerInMatcher(this.beforePatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
           utils.registerGlobal(this.beforeGlobalHandlers, utils.ensureIsFuction(arg1))
@@ -142,7 +146,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
     const headers = utils.normalizeHeaders({
-      addHeaders, actHeaders, sourceMessage, matchedPattern
+      addHeaders, actHeaders, sourceMessage, matchedPattern,
+      notifyableTransportsEnum: this.notifyableTransportsEnum
     })
     const slowTimeoutWarning = headers.slow ? parseInt(headers.slow, 10) : this.config.slowPatternTimeout
     const timeout = headers.timeout ? parseInt(headers.timeout, 10) : this.config.timeout
@@ -173,7 +178,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       pattern,
       headers,
       errorHandler: this.onError,
-      globalEmitter: this.eventEmitter
+      globalEmitter: this.eventEmitter,
+      transports: this.transports
     })
 
     if (headers.nowait) { // sometimes client dont want to wait, so we simply launch chain in async mode

@@ -6,7 +6,7 @@ const ajv = new Ajv({
   coerceTypes: 'array',
   useDefaults: true
 })
-const isHeadersValid = ajv.compile({
+const areHeadersValid = ajv.compile({
   type: 'object',
   properties: {
     timeout: {
@@ -22,11 +22,23 @@ const isHeadersValid = ajv.compile({
       type: 'boolean'
     },
     notify: {
-      type: 'boolean'
+      type: 'array',
+      items: {
+        type: 'string',
+      },
+      minItems: 1,
+      uniqueItems: true
     }
   }
 })
 
+function notifyListenersAboutEvent({ message, headers}, transports, globalEmitter) {
+  if (!headers.notify) { return }
+  if (headers.notify.includes('local')) {
+    const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
+    globalEmitter.emit(uniqueEvent, message, headers)
+  }
+}
 
 function calcDelay(offset, inNanoSeconds = true) {
   const now = (() => {
@@ -160,20 +172,35 @@ module.exports = {
     }
   },
 
-  normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern}) {
+  normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern, notifyableTransportsEnum}) {
     const headers = ld.merge({}, addHeaders, actHeaders, {
       pattern: matchedPattern,
       source: sourceMessage
     })
 
-    if (!isHeadersValid(headers)) { // should append defaults, convert values into valid ones etc
-      throw new Error(ajv.errorsText(isHeadersValid.errors))
+    // true, 'true', 'name1, name2', ['name1', 'name2']
+    if (headers.notify && !ld.isArray(headers.notify)) {
+      switch (headers.notify) {
+        case true:
+        case 'true':
+          headers.notify = ld.clone(notifyableTransportsEnum)
+          if (!headers.notify.includes('local')) {
+            headers.notify.push('local')
+          }
+          break
+        default:
+          headers.notify = headers.notify.split(',').map(item => item.trim()).filter(item => item)
+      }
+    }
+
+    if (!areHeadersValid(headers)) { // should append defaults, convert values into valid ones etc
+      throw new Error(ajv.errorsText(areHeadersValid.errors))
     }
     return headers
   },
 
   // create cancelable promise from chain of payloads
-  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler, globalEmitter }) {
+  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler, globalEmitter, transports }) {
     // NOTE: `headers` can be modified by chain item
     return () => {
       return Promise.reduce(executionChain, (input, chainItem) => {
@@ -187,11 +214,13 @@ module.exports = {
         return handlerAsync(input, headers)
       }, pattern)
       .then(message => {
-        if (headers.notify) { // notify global listeners on success
-          const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
-          globalEmitter.emit(uniqueEvent, message, headers)
-        }
         return { message, headers }
+      })
+      .then(async data => {
+        if (data.headers.notify) {
+          await notifyListenersAboutEvent(data, transports, globalEmitter)
+        }
+        return data
       })
       .catch(Promise.CancellationError, err => { // stop execution chain if `break` event raised
         const { message, headers } = err

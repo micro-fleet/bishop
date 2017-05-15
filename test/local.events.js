@@ -31,7 +31,7 @@ test('event emitting configured from bishop.add', async t => {
 
   bishop.follow('some: pattern, with: arguments', (message, headers) => {
     t.pass()
-    t.is(headers.notify, true)
+    t.deepEqual(headers.notify, ['local'])
     t.is(message.logic, 'completed')
   })
 
@@ -52,7 +52,7 @@ test('event emitting configured from bishop.act', async t => {
 
   bishop.follow('some: pattern, with: arguments', (message, headers) => {
     t.pass()
-    t.is(headers.notify, true)
+    t.deepEqual(headers.notify, ['local'])
     t.is(message.logic, 'completed')
   })
 
