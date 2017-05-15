@@ -9,6 +9,9 @@ const ajv = new Ajv({
 const areHeadersValid = ajv.compile({
   type: 'object',
   properties: {
+    id: {
+      type: 'string'
+    },
     timeout: {
       type: 'number'
     },
@@ -125,6 +128,10 @@ function routingKeyFromPattern(pattern) {
   }).join('.')
 }
 
+function uniqueId() {
+  return ld.sampleSize('abcdefghigklmnopqrstuvwxyz1234567890', 10).join('')
+}
+
 module.exports = {
 
   calcDelay, ensureIsFuction, objectify, split, beautify, routingKeyFromPattern,
@@ -192,7 +199,8 @@ module.exports = {
   normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern, notifyableTransportsEnum}) {
     const headers = ld.merge({}, addHeaders, actHeaders, {
       pattern: matchedPattern,
-      source: sourceMessage
+      source: sourceMessage,
+      id: uniqueId()
     })
 
     // true, 'true', 'name1, name2', ['name1', 'name2']

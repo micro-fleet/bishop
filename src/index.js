@@ -3,6 +3,7 @@ const ld = require('lodash')
 const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
 const utils = require('./utils')
+const LRU = require('lru-cache')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -18,11 +19,17 @@ const defaultConfig = {
   slowPatternTimeout: null,
   // emit warning in big execution chain
   maxExecutionChain: 10,
+  // in case of .follow same message can be delivered over different transports
+  ignoreSameMessage: true,
   // default behaviour on error - emit exception
   onError: utils.throwError,
   // default logger instance
   logger: console
 }
+
+const uniqueIds = LRU({
+  maxAge: 60 * 1000
+})
 
 class Bishop {
   constructor(userConfig) {
@@ -72,14 +79,25 @@ class Bishop {
   // listen for pattern and execute payload on success
   follow(message, listener) {
     const [ pattern ] = utils.split(message)
+    const ignoreSameMessage = this.config.ignoreSameMessage
 
+    function handler(message, headers) {
+      const id = headers.id
+
+      if (ignoreSameMessage && uniqueIds.has(id)) {
+        // do not emit same message
+        return
+      }
+      uniqueIds.set(id, true)
+      listener(message, headers)
+    }
     // subscribe to local event
     const uniqueEvent = `**.${utils.routingKeyFromPattern(pattern)}.**`
-    this.eventEmitter.on(uniqueEvent, listener)
+    this.eventEmitter.on(uniqueEvent, handler)
 
     // subscribe to events from transports
     this.followableTransportsEnum.forEach(transportName => {
-      this.transports[transportName].follow(pattern, listener)
+      this.transports[transportName].follow(pattern, handler)
     })
   }
 

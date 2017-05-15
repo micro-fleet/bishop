@@ -30,7 +30,8 @@
     "bloomrun": "^3.0.1",
     "bluebird": "^3.4.6",
     "eventemitter2": "^4.1.0",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.4",
+    "lru-cache": "^4.0.2"
   },
   "ava": {
     "verbose": true,
