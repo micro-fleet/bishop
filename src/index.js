@@ -56,7 +56,7 @@ class Bishop {
     this.beforeGlobalHandlers = []
     this.afterGlobalHandlers = []
 
-    this.transports = {} // transportName: { wrapper, [options], [notify] }
+    this.transports = {} // transportName: { options, follow, notify, request }
     this.notifyableTransportsEnum = [] // transports name able to receive events
     this.followableTransportsEnum = []
   }

@@ -41,7 +41,7 @@ test('remove pattern operation', async t => {
   bishop.add('role: test, remove: true', () => 'remove')
   t.is(await bishop.act('role: test, remove: true'), 'remove')
   bishop.remove('role: test, remove: true')
-  t.throws(bishop.act('role: test, remove: true'), /not found/)
+  await t.throws(bishop.act('role: test, remove: true'), /not found/)
 })
 
 test('invalid parameters', async t => {
@@ -63,7 +63,7 @@ test('check $timeout', async t => {
     return 'success'
   })
   t.is(await bishop.act('role:test ,act:timeout'), 'success' )
-  t.throws(bishop.act('role:test, act:timeout', { delay: timeout + 100 }), /pattern timeout after/)
+  await t.throws(bishop.act('role:test, act:timeout', { delay: timeout + 100 }), /pattern timeout after/)
 })
 
 test('check $nowait', async t => {

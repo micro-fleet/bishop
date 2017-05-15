@@ -147,11 +147,11 @@ module.exports = {
     remoteTransportsStorage[name] = { options, wrapper }
   },
 
-  registerTransport(transportsStorage, name, transportMethods, options) {
+  registerTransport(transportsStorage, name, transportMethods, options = {}) {
     if (transportsStorage[name]) {
       throw new Error(`.register(transport): ${name} already exists`)
     }
-    transportsStorage[name] = Object.assign({}, transportMethods, options)
+    transportsStorage[name] = Object.assign({}, transportMethods, { options })
   },
 
   registerInMatcher(matcher, message, payload) {
@@ -175,14 +175,14 @@ module.exports = {
       return [ payload, {} ]
     }
     // thereis a string in payload - redirect to external transport
-    const { wrapper, options } = remoteTransportsStorage[payload] || {}
-    if (!wrapper) {
-      throw new Error(`looks like ${payload} handler is not registered via .register(remote)`)
+    const { request, options } = remoteTransportsStorage[payload] || {}
+    if (!request) {
+      throw new Error(`transport ${payload} has no .request method`)
     }
     if (options.timeout && !headers.timeout) { // redefine pattern timeout if transport-specific is set
       headers.timeout = options.timeout
     }
-    return [ wrapper, {} ]
+    return [ request, {} ]
   },
 
   createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger) {

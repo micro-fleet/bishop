@@ -20,13 +20,13 @@
   },
   "homepage": "https://github.com/afoninsky/bishop#readme",
   "devDependencies": {
-    "ava": "^0.16.0",
+    "ava": "^0.19.1",
     "eslint": "^3.19.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
     "nyc": "^10.3.2"
   },
   "dependencies": {
-    "ajv": "^5.0.1",
+    "ajv": "^5.1.1",
     "bloomrun": "^3.0.1",
     "bluebird": "^3.4.6",
     "eventemitter2": "^4.1.0",
