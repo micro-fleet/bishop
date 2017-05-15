@@ -1,6 +1,6 @@
 {
   "name": "bishop",
-  "version": "5.0.4",
+  "version": "5.0.5",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
