@@ -20,7 +20,7 @@ const defaultConfig = {
   // emit warning in big execution chain
   maxExecutionChain: 10,
   // in case of .follow same message can be delivered over different transports
-  ignoreSameMessage: true,
+  ignoreSameMessage: false,
   // default behaviour on error - emit exception
   onError: utils.throwError,
   // default logger instance
@@ -57,7 +57,6 @@ class Bishop {
     this.afterGlobalHandlers = []
 
     this.transports = {} // transportName: { options, follow, notify, request }
-    this.notifyableTransportsEnum = [] // transports name able to receive events
     this.followableTransportsEnum = []
   }
 
@@ -118,18 +117,12 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         utils.registerRemoteTransport(this.transports, arg1,
           utils.ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
         arg3)
-        this.notifyableTransportsEnum = Object.keys(this.transports).filter(name => {
-          return this.transports[name].notify // `notify` method exists in transport
-        })
         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
           return this.transports[name].follow // `follow` method exists in transport
         })
         return
       case 'transport':
         utils.registerTransport(this.transports, arg1, arg2, arg3)
-        this.notifyableTransportsEnum = Object.keys(this.transports).filter(name => {
-          return this.transports[name].notify // `notify` method exists in transport
-        })
         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
           return this.transports[name].follow // `follow` method exists in transport
         })

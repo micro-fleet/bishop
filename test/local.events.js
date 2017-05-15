@@ -24,7 +24,7 @@ test('event emitting configured from bishop.add', async t => {
   t.plan(5)
   const bishop = new Bishop()
 
-  bishop.add('some: pattern, with: arguments, $notify: true', () => {
+  bishop.add('some: pattern, with: arguments, $notify', () => {
     t.pass()
     return { logic: 'completed' }
   })

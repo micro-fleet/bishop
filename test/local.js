@@ -134,24 +134,6 @@ test('.register and break execution', async t => {
   t.deepEqual(result, { role: 'test', act: 'final-handler' })
 })
 
-test('remote wrappers', async t => {
-  const bishop = new Bishop()
-  const transportName = 'remote-test'
-  let incomingMessage
-  bishop.register('remote', transportName, async (message, headers) => {
-    incomingMessage = message
-    t.is(headers.timeout, 100)
-    return 'success'
-  }, {
-    timeout: 100
-  })
-  bishop.add('role:test, act:remote', transportName)
-
-  const result = await bishop.act('role:test, act:remote')
-  t.deepEqual(incomingMessage, { role: 'test', act: 'remote' })
-  t.is(result, 'success')
-})
-
 test('use plugin', async t => {
   const bishop = new Bishop()
   const pluginOptions = {

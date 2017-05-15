@@ -6,6 +6,7 @@ const ajv = new Ajv({
   coerceTypes: 'array',
   useDefaults: true
 })
+const regExpAll = /.*/
 const areHeadersValid = ajv.compile({
   type: 'object',
   properties: {
@@ -69,7 +70,7 @@ function text2obj(input) {
   return input.split(',').reduce((prev, cur) => {
     let [ key, value ] = cur.trim().split(':')
     if (typeof value === 'undefined') {
-      value = '/.*/'
+      value = regExpAll.toString()
     }
     const trimmedValue = value.trim()
     prev[key.trim()] = trimmedValue[0] === '/' ?
@@ -196,7 +197,7 @@ module.exports = {
     }
   },
 
-  normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern, notifyableTransportsEnum}) {
+  normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern}) {
     const headers = ld.merge({}, addHeaders, actHeaders, {
       pattern: matchedPattern,
       source: sourceMessage,
@@ -204,17 +205,19 @@ module.exports = {
     })
 
     // true, 'true', 'name1, name2', ['name1', 'name2']
+    // by default, local notification is enabled
     if (headers.notify && !ld.isArray(headers.notify)) {
       switch (headers.notify) {
         case true:
         case 'true':
-          headers.notify = ld.clone(notifyableTransportsEnum)
-          if (!headers.notify.includes('local')) {
-            headers.notify.push('local')
-          }
+          headers.notify = ['local']
           break
         default:
-          headers.notify = headers.notify.split(',').map(item => item.trim()).filter(item => item)
+          if (headers.notify instanceof RegExp) {
+            headers.notify = ['local']
+          } else {
+            headers.notify = headers.notify.split(',').map(item => item.trim()).filter(item => item)
+          }
       }
     }
 
