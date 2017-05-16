@@ -4,6 +4,8 @@ const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
 const utils = require('./utils')
 const LRU = require('lru-cache')
+const pkg = require('../package')
+const debug = require('debug')(pkg.name)
 
 // default options for bishop instance
 const defaultConfig = {
@@ -66,6 +68,7 @@ class Bishop {
     if (!payload) {
       utils.throwError(new Error('.add: please pass pattern handler as last parameter'))
     }
+    debug('add service, message:', JSON.stringify(message), 'resulting pattern:', JSON.stringify(pattern), 'options:', JSON.stringify(options))
     if (this.config.forbidSameRouteNames) {
       utils.throwIfPatternExists(this.globalPatternMatcher, pattern)
     }
@@ -79,8 +82,9 @@ class Bishop {
   follow(message, listener) {
     const [ pattern ] = utils.split(message)
     const ignoreSameMessage = this.config.ignoreSameMessage
+    const eventEmitter = this.eventEmitter
 
-    function handler(message, headers) {
+    async function handler(message, headers) {
       const id = headers.id
 
       if (ignoreSameMessage && uniqueIds.has(id)) {
@@ -88,11 +92,20 @@ class Bishop {
         return
       }
       uniqueIds.set(id, true)
-      listener(message, headers)
+      debug('.follow: got message, message:', JSON.stringify(message), 'headers:', JSON.stringify(headers))
+
+      try {
+        const result = await listener(message, headers)
+        eventEmitter.emit(`notify.${id}.success`, result, message, headers)
+      } catch (err) {
+        eventEmitter.emit(`notify.${id}.error`, err, message, headers)
+      }
+
     }
     // subscribe to local event
     const uniqueEvent = `**.${utils.routingKeyFromPattern(pattern)}.**`
-    this.eventEmitter.on(uniqueEvent, handler)
+    debug(`.follow: subscribed to ${uniqueEvent}`)
+    eventEmitter.on(uniqueEvent, handler)
 
     // subscribe to events from transports
     this.followableTransportsEnum.forEach(transportName => {
@@ -126,15 +139,18 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
           return this.transports[name].follow // `follow` method exists in transport
         })
+        debug(`.register transport: ${arg1}`)
         return
       case 'before':
+        debug(`.register before: ${arg2 ? arg1 : 'global'}`)
         return arg2 ? utils.registerInMatcher(this.beforePatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
           utils.registerGlobal(this.beforeGlobalHandlers, utils.ensureIsFuction(arg1))
       case 'after':
+        debug(`.register after: ${arg2 ? arg1 : 'global'}`)
         return arg2 ? utils.registerInMatcher(this.afterPatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
           utils.registerGlobal(this.afterGlobalHandlers, utils.ensureIsFuction(arg1))
       default:
-        throw new Error('.register(before|after|remote, ...)')
+        throw new Error('.register(before|after|transport, ...)')
     }
   }
 
@@ -167,7 +183,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
     const actStarted = utils.calcDelay(null, false)
     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
-
+    debug('.act request:', JSON.stringify(pattern), ', actHeaders:', JSON.stringify(actHeaders))
     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {

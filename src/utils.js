@@ -41,7 +41,6 @@ const areHeadersValid = ajv.compile({
  */
 function notifyListenersAboutEvent({ message, headers}, transports, globalEmitter) {
   if (!headers.notify) { return }
-
   if (headers.notify.includes('local')) {
     const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
     globalEmitter.emit(uniqueEvent, message, headers)
@@ -49,8 +48,8 @@ function notifyListenersAboutEvent({ message, headers}, transports, globalEmitte
 
   return Promise.map(headers.notify, transportName => {
     if (transportName === 'local') { return }
-    const notifyTransportSubsctibers = transports[transportName].notify
-    return notifyTransportSubsctibers(message, headers)
+    const notifyTransportSubscribers = transports[transportName].notify
+    return notifyTransportSubscribers(message, headers)
   })
 }
 
@@ -201,9 +200,11 @@ module.exports = {
   normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern}) {
     const headers = ld.merge({}, addHeaders, actHeaders, {
       pattern: matchedPattern,
-      source: sourceMessage,
-      id: uniqueId()
+      source: sourceMessage
     })
+    if (!headers.id) {
+      headers.id = uniqueId()
+    }
 
     // true, 'true', 'name1, name2', ['name1', 'name2']
     // by default, local notification is enabled
