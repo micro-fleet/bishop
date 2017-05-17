@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+debug/
+coverage/
+.nyc_output/
+legacy/
+yarn.lock
+.idea
