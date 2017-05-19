@@ -80,7 +80,7 @@ class Bishop {
 
   // listen for pattern and execute payload on success
   async follow(message, listener) {
-    const [ pattern ] = utils.split(message)
+    const [ pattern, headers ] = utils.split(message)
     const ignoreSameMessage = this.config.ignoreSameMessage
     const eventEmitter = this.eventEmitter
 
@@ -109,7 +109,7 @@ class Bishop {
 
     // subscribe to events from transports
     return Promise.map(this.followableTransportsEnum, transportName => {
-      return this.transports[transportName].follow(pattern, handler)
+      return this.transports[transportName].follow(pattern, handler, headers)
     })
   }
 

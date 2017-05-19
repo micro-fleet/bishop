@@ -190,3 +190,27 @@ test('error handlers', async t => {
   await customBishop.act('role:test, act:error')
   t.is(customError.message, 'custom error')
 })
+
+
+test('test bug #55', async t => {
+  // https://github.com/mcollina/bloomrun/issues/55
+
+  const bishop = new Bishop()
+
+  bishop.add('role:tag, cmd:find', () => 'tag,find')
+  bishop.add('role:location, cmd:find', () => 'location,find')
+  bishop.add('role:tag, cmd:find, count', () => 'tag,find,count')
+  bishop.add('role:location, cmd:find, count', () => 'location,find,count')
+
+
+  const test = {}
+  test['tag,find,count'] = await bishop.act('role:tag, cmd:find, count:true')
+  test['tag,find'] = await bishop.act('role:tag, cmd:find')
+  test['location,find,count'] = await bishop.act('role:location, cmd:find, count:true')
+  test['location,find'] = await bishop.act('role:location, cmd:find')
+
+  for (let name in test) {
+    t.is(name, test[name], `"${test[name]}" shoud be equal "${name}"`)
+  }
+
+})
