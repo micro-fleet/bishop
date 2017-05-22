@@ -103,7 +103,8 @@ class Bishop {
 
     }
     // subscribe to local event
-    const uniqueEvent = `**.${utils.routingKeyFromPattern(pattern)}.**`
+    // https://github.com/asyncly/EventEmitter2#multi-level-wildcards
+    const uniqueEvent = `**.${utils.routingKeyFromPattern(pattern).join('.**.')}.**`
     debug(`.follow: subscribed to ${uniqueEvent}`)
     eventEmitter.on(uniqueEvent, handler)
 

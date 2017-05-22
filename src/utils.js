@@ -42,7 +42,7 @@ const areHeadersValid = ajv.compile({
 function notifyListenersAboutEvent({ message, headers}, transports, globalEmitter) {
   if (!headers.notify) { return }
   if (headers.notify.includes('local')) {
-    const uniqueEvent = `${routingKeyFromPattern(headers.pattern)}`
+    const uniqueEvent = `${routingKeyFromPattern(headers.pattern).join('.')}`
     globalEmitter.emit(uniqueEvent, message, headers)
   }
 
@@ -126,7 +126,7 @@ function routingKeyFromPattern(pattern) {
     const keyType = typeof pattern[key]
     const value = keyType === 'string' ? pattern[key] : '*'
     return `${key}.${value}`
-  }).join('.')
+  })
 }
 
 function uniqueId() {
