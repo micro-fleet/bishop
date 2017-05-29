@@ -137,10 +137,6 @@ module.exports = {
 
   calcDelay, ensureIsFuction, objectify, split, beautify, routingKeyFromPattern,
 
-  throwError(err) {
-    throw err
-  },
-
   registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
     if (remoteTransportsStorage[name]) {
       throw new Error(`.register(remote): ${name} already exists`)

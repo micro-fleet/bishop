@@ -24,7 +24,7 @@ const defaultConfig = {
   // in case of .follow same message can be delivered over different transports
   ignoreSameMessage: false,
   // default behaviour on error - emit exception
-  onError: utils.throwError,
+  onError: err => { throw err },
   // default logger instance
   logger: console
 }
@@ -64,9 +64,16 @@ class Bishop {
 
   // register payload for specified pattern
   add(message, payload) {
+    if (!message) {
+      console.log('Empty pattern detected...')
+      if (payload) {
+        console.log(payload.toString())
+      }
+      throw new Error('.add: looks like you trying to add empty patter')
+    }
     const [ pattern, options ] = utils.split(message)
     if (!payload) {
-      utils.throwError(new Error('.add: please pass pattern handler as last parameter'))
+      throw new Error('.add: please pass pattern handler as last parameter')
     }
     debug('add service, message:', JSON.stringify(message), 'resulting pattern:', JSON.stringify(pattern), 'options:', JSON.stringify(options))
     if (this.config.forbidSameRouteNames) {
@@ -180,7 +187,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
   async actRaw(message, ...payloads) {
     if (!message) {
-      return utils.throwError(new Error('.act: please specify at least one search pattern'))
+      throw new Error('.act: please specify at least one search pattern')
     }
     const actStarted = utils.calcDelay(null, false)
     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
@@ -188,7 +195,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
-      return utils.throwError(new Error(`pattern not found: ${utils.beautify(sourceMessage)}`))
+      throw new Error(`pattern not found: ${utils.beautify(sourceMessage)}`)
     }
 
     const matchedPattern = result.pattern
