@@ -4,8 +4,6 @@ const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
 const utils = require('./utils')
 const LRU = require('lru-cache')
-const pkg = require('../package')
-const debug = require('debug')(pkg.name)
 
 // default options for bishop instance
 const defaultConfig = {
@@ -15,8 +13,6 @@ const defaultConfig = {
   matchOrder: 'depth', // insertion, depth
   // default timeout for pattern execution in ms
   timeout: 500,
-  // append debbuging information into response
-  // debug: false,
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
   // emit warning in big execution chain
@@ -75,7 +71,6 @@ class Bishop {
     if (!payload) {
       throw new Error('.add: please pass pattern handler as last parameter')
     }
-    debug('add service, message:', JSON.stringify(message), 'resulting pattern:', JSON.stringify(pattern), 'options:', JSON.stringify(options))
     if (this.config.forbidSameRouteNames) {
       utils.throwIfPatternExists(this.globalPatternMatcher, pattern)
     }
@@ -99,7 +94,6 @@ class Bishop {
         return
       }
       uniqueIds.set(id, true)
-      debug('.follow: got message, message:', JSON.stringify(message), 'headers:', JSON.stringify(headers))
 
       try {
         const result = await listener(message, headers)
@@ -112,7 +106,6 @@ class Bishop {
     // subscribe to local event
     // https://github.com/asyncly/EventEmitter2#multi-level-wildcards
     const uniqueEvent = `**.${utils.routingKeyFromPattern(pattern).join('.**.')}.**`
-    debug(`.follow: subscribed to ${uniqueEvent}`)
     eventEmitter.on(uniqueEvent, handler)
 
     // subscribe to events from transports
@@ -147,14 +140,11 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
           return this.transports[name].follow // `follow` method exists in transport
         })
-        debug(`.register transport: ${arg1}`)
         return
       case 'before':
-        debug(`.register before: ${arg2 ? arg1 : 'global'}`)
         return arg2 ? utils.registerInMatcher(this.beforePatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
           utils.registerGlobal(this.beforeGlobalHandlers, utils.ensureIsFuction(arg1))
       case 'after':
-        debug(`.register after: ${arg2 ? arg1 : 'global'}`)
         return arg2 ? utils.registerInMatcher(this.afterPatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
           utils.registerGlobal(this.afterGlobalHandlers, utils.ensureIsFuction(arg1))
       default:
@@ -191,7 +181,6 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
     const actStarted = utils.calcDelay(null, false)
     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
-    debug('.act request:', JSON.stringify(pattern), ', actHeaders:', JSON.stringify(actHeaders))
     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
