@@ -249,6 +249,7 @@ module.exports = {
             log.error(err)
           })
         }
+        globalEmitter.emit(`pattern.${headers.id}.success`, data.message, data.headers)
         return data
       })
       .catch(Promise.CancellationError, err => { // stop execution chain if `break` event raised

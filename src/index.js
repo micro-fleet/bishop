@@ -181,25 +181,36 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
   async actRaw(message, ...payloads) {
 
-    if (!message) {
-      return this.emitError(new Error('.act: please specify at least one search pattern'))
-    }
     const actStarted = utils.calcDelay(null, false)
     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
+
+    const normalizeHeadersParams = { actHeaders, sourceMessage,
+      notifyableTransportsEnum: this.notifyableTransportsEnum
+    }
+
+    if (ld.isEmpty(message)) {
+      return this.emitError(
+        new Error('.act: please specify at least one search pattern'),
+        utils.normalizeHeaders(normalizeHeadersParams)
+      )
+    }
+
     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
-      return this.emitError(new Error(`pattern not found: ${utils.beautify(sourceMessage)}`))
+      return this.emitError(
+        new Error(`pattern not found: ${utils.beautify(sourceMessage)}`),
+        utils.normalizeHeaders(normalizeHeadersParams)
+      )
     }
 
     const matchedPattern = result.pattern
     const [ payload, addHeaders ] = result.payload
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
-    const headers = utils.normalizeHeaders({
-      addHeaders, actHeaders, sourceMessage, matchedPattern,
-      notifyableTransportsEnum: this.notifyableTransportsEnum
-    })
+    normalizeHeadersParams.addHeaders = addHeaders
+    normalizeHeadersParams.matchedPattern = matchedPattern
+    const headers = utils.normalizeHeaders(normalizeHeadersParams)
 
     const slowTimeoutWarning = headers.slow ? parseInt(headers.slow, 10) : this.config.slowPatternTimeout
     const timeout = headers.timeout ? parseInt(headers.timeout, 10) : this.config.timeout
