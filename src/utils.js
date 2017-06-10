@@ -256,7 +256,10 @@ module.exports = {
         return { message, headers }
       })
       .catch(err => {
-        return { message: errorHandler(err), headers }
+        return {
+          message: errorHandler(err, headers),
+          headers
+        }
       })
     }
   }

@@ -19,8 +19,6 @@ const defaultConfig = {
   maxExecutionChain: 10,
   // in case of .follow same message can be delivered over different transports
   ignoreSameMessage: false,
-  // default behaviour on error - emit exception
-  onError: err => { throw err },
   // default logger instance
   logger: console
 }
@@ -34,7 +32,6 @@ class Bishop {
 
     const config = this.config = Object.assign({}, defaultConfig, userConfig)
     this.log = config.logger
-    this.onError = config.onError
 
     // listen incoming events and handle corresponding patterns
     this.eventEmitter = new EventEmitter2({
@@ -45,6 +42,13 @@ class Bishop {
       verboseMemoryLeak: false
     })
 
+    this.userErrorHandler = config.onError || function errorHandler(err) {
+      throw err
+    }
+    this.emitError = (error, headers = {}) => { // default error handler
+      this.eventEmitter.emit(`pattern.${headers.id || 'unknown'}.error`, error, headers)
+      return this.userErrorHandler(error, headers)
+    }
 
     this.globalPatternMatcher = bloomrun({ indexing: config.matchOrder })
     this.localPatternMatcher = bloomrun({ indexing: config.matchOrder })
@@ -65,7 +69,7 @@ class Bishop {
       if (payload) {
         console.log(payload.toString())
       }
-      throw new Error('.add: looks like you trying to add empty patter')
+      throw new Error('.add: looks like you trying to add an empty pattern')
     }
     const [ pattern, options ] = utils.split(message)
     if (!payload) {
@@ -176,15 +180,16 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   }
 
   async actRaw(message, ...payloads) {
+
     if (!message) {
-      throw new Error('.act: please specify at least one search pattern')
+      return this.emitError(new Error('.act: please specify at least one search pattern'))
     }
     const actStarted = utils.calcDelay(null, false)
     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
-      throw new Error(`pattern not found: ${utils.beautify(sourceMessage)}`)
+      return this.emitError(new Error(`pattern not found: ${utils.beautify(sourceMessage)}`))
     }
 
     const matchedPattern = result.pattern
@@ -195,6 +200,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       addHeaders, actHeaders, sourceMessage, matchedPattern,
       notifyableTransportsEnum: this.notifyableTransportsEnum
     })
+
     const slowTimeoutWarning = headers.slow ? parseInt(headers.slow, 10) : this.config.slowPatternTimeout
     const timeout = headers.timeout ? parseInt(headers.timeout, 10) : this.config.timeout
 
@@ -223,7 +229,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       executionChain,
       pattern,
       headers,
-      errorHandler: this.onError,
+      errorHandler: this.emitError,
       globalEmitter: this.eventEmitter,
       transports: this.transports,
       log: this.log
@@ -241,7 +247,10 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     return chainRunnerAsync()
       .timeout(timeout)
       .catch(Promise.TimeoutError, () => {
-        throw new Error(`pattern timeout after ${timeout}ms: ${utils.beautify(headers.source)}`)
+        return this.emitError(
+          new Error(`pattern timeout after ${timeout}ms: ${utils.beautify(headers.source)}`),
+          headers
+        )
       })
     }
 }
