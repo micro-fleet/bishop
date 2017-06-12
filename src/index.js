@@ -164,9 +164,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   }
 
   // load module with routes
-  async use(plugin, options) {
+  async use(plugin, ...options) {
     utils.ensureIsFuction(plugin, '.use: function expected, but not found')
-    return plugin(this, options)
+    return plugin(this, ...options)
   }
 
   // find first matching service by pattern, and execute it
