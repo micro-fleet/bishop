@@ -1,7 +1,5 @@
 # http://eslint.org/docs/rules/
 extends: eslint:recommended
-plugins:
-  - output-todo-comments
 parserOptions:
   ecmaVersion: 8
 env:
@@ -18,9 +16,3 @@ rules:
   no-use-before-define: off
   eol-last: off
   quotes: [ error, single ]
-  output-todo-comments/output-todo-comments:
-  - warn
-  - terms:
-    - todo
-    - fixme
-    - 2do

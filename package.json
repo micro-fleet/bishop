@@ -22,16 +22,16 @@
   "devDependencies": {
     "ava": "^0.19.1",
     "eslint": "^4.0.0",
-    "eslint-plugin-output-todo-comments": "0.0.7",
     "nyc": "^11.0.2"
   },
   "dependencies": {
-    "ajv": "^5.1.5",
+    "ajv": "^5.2.2",
     "bloomrun": "3.0.2",
     "bluebird": "^3.4.6",
     "eventemitter2": "^4.1.0",
     "lodash": "^4.17.4",
-    "lru-cache": "^4.1.1"
+    "lru-cache": "^4.1.1",
+    "shortid": "^2.2.8"
   },
   "ava": {
     "verbose": true,
