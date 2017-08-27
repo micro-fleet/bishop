@@ -4,7 +4,7 @@ const { EventEmitter2 } = require('eventemitter2')
 const LRU = require('lru-cache')
 
 const { validateOrThrow } = require('./validator')
-const { beautify, normalizePattern, routingKeyFromPattern } = require('./utils')
+const { beautify, normalizePattern, routingKeyFromPattern, getOption, ensureIsFuction } = require('./utils')
 
 const uniqueIds = LRU({
   maxAge: 60 * 1000
@@ -18,6 +18,10 @@ class Bishop extends EventEmitter2 {
     validateOrThrow(this.options, 'options')
 
     this.patternMatcher = bloomrun({ indexing: options.matchOrder })
+    this.patternHandlers = {
+      before: bloomrun({ indexing: options.matchOrder }),
+      after: bloomrun({ indexing: options.matchOrder })
+    }
 
     this.on('warning', console.log)
   }
@@ -27,10 +31,9 @@ class Bishop extends EventEmitter2 {
  */
   add(...args) {
     const payload = args.pop()
-    if (!ld.isFunction(payload)) {
-      throw new Error('.add: please pass payload in last argument')
-    }
+    ensureIsFuction(payload, '.add: please pass payload in last argument')
     const { pattern, options } = normalizePattern(...args)
+
     if (this.options.forbidSameRouteNames) {
       const foundPattern = this.patternMatcher.lookup(pattern, { patterns: true })
       if (ld.isEqual(foundPattern, pattern)) {
@@ -44,12 +47,51 @@ class Bishop extends EventEmitter2 {
 /**
  *
  */
+  remove(...args) {
+    const { pattern } = normalizePattern(...args)
+    this.patternMatcher.remove(pattern)
+  }
+
+  // load module with routes
+  async use(plugin, ...options) {
+    ensureIsFuction(plugin, '.use: function expected, but not found')
+    return plugin(this, ...options)
+  }
+
+
+
+ /**
+  *  WARN: register('before|after', pattern, handler) order not guaranteed
+  *    .register('before', pattern, handler)
+  *    .register('after', pattern, handler)
+  */
+ register(type, userPattern, handler) {
+   const patternMatcher = this.patternHandlers[type]
+   if (!patternMatcher) {
+     throw new Error(`.register: ${type} not supported`)
+   }
+   const { pattern } = normalizePattern(userPattern)
+   patternMatcher.add(pattern, { handler: ensureIsFuction(handler) })
+ }
+
+
+/**
+ *
+ */
  act(...args) {
-   const { pattern } = normalizePattern(...args)
-   const { payload, options } = this.patternMatcher.lookup(pattern)
-   const result = payload(pattern, options)
-   const eventName = routingKeyFromPattern(pattern).join('.')
-   this.emit(eventName, result, pattern, options)
+   const { pattern, options: actOptions } = normalizePattern(...args)
+   const { payload, options: addOptions } = this.patternMatcher.lookup(pattern)
+   const result = payload(pattern, actOptions)
+
+   const flags = ['notify', 'timeout', 'slow', 'local', 'nowait'].reduce((acc, name) => {
+     acc[name] = getOption(name, actOptions, addOptions, this.options)
+     return acc
+   }, {})
+
+   if (flags.notify) {
+     const eventName = routingKeyFromPattern(pattern).join('.')
+     this.emit(eventName, result, pattern, actOptions)
+   }
    return result
  }
 
@@ -58,9 +100,7 @@ class Bishop extends EventEmitter2 {
  */
  follow(...args) {
    const listener = args.pop()
-   if (!ld.isFunction(listener)) {
-     throw new Error('.follow: please pass listener in last argument')
-   }
+   ensureIsFuction(listener, '.follow: please pass listener in last argument')
    const { pattern } = normalizePattern(...args)
    const eventName = `**.${routingKeyFromPattern(pattern).join('.**.')}.**`
 
@@ -83,57 +123,6 @@ class Bishop extends EventEmitter2 {
    this.on(eventName, handler)
  }
 
-// /**
-// WARN: register('before|after', pattern, handler) order not guaranteed
-// .register('before', handler)
-// .register('before', pattern, handler)
-// .register('after', handler)
-// .register('after', pattern, handler)
-// .register('remote', name, handler, options)
-// .register('transport', name, instance, [options])
-//  */
-//   register(...params) {
-//     const [ type, arg1, arg2, arg3 ] = params
-//
-//     switch (type) {
-//       case 'remote': // backward
-//         utils.registerRemoteTransport(this.transports, arg1,
-//           utils.ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
-//         arg3)
-//         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
-//           return this.transports[name].follow // `follow` method exists in transport
-//         })
-//         return
-//       case 'transport':
-//         utils.registerTransport(this.transports, arg1, arg2, arg3)
-//         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
-//           return this.transports[name].follow // `follow` method exists in transport
-//         })
-//         return
-//       case 'before':
-//         return arg2 ? utils.registerInMatcher(this.beforePatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
-//           utils.registerGlobal(this.beforeGlobalHandlers, utils.ensureIsFuction(arg1))
-//       case 'after':
-//         return arg2 ? utils.registerInMatcher(this.afterPatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
-//           utils.registerGlobal(this.afterGlobalHandlers, utils.ensureIsFuction(arg1))
-//       default:
-//         throw new Error('.register(before|after|transport, ...)')
-//     }
-//   }
-//
-//   // remove pattern from pattern matcher instance
-//   remove(message) {
-//     const [ pattern ] = utils.split(message)
-//     this.globalPatternMatcher.remove(pattern)
-//     this.localPatternMatcher.remove(pattern)
-//   }
-//
-//   // load module with routes
-//   async use(plugin, ...options) {
-//     utils.ensureIsFuction(plugin, '.use: function expected, but not found')
-//     return plugin(this, ...options)
-//   }
-//
 //   // find first matching service by pattern, and execute it
 //   //  $timeout - redefine global request timeout for network requests
 //   //  $slow - emit warning if pattern executing more than $slow ms
