@@ -1,4 +1,4 @@
-'notify', 'timeout', 'slow', 'local', 'nowait' (.add, .act, constuctor)
+'notify', 'timeout', 'slow' (order: .add, .act, constuctor)
 
 .add(...args, payload)
 .act(...args)

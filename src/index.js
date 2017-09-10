@@ -1,14 +1,24 @@
+/**
+2do: cache .act requests
+2do: tests
+2do: readme
+*/
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
 const { EventEmitter2 } = require('eventemitter2')
 const LRU = require('lru-cache')
 
-const { validateOrThrow } = require('./validator')
+const { validateOrThrow, schemas } = require('./validator')
 const { beautify, normalizePattern, routingKeyFromPattern, getOption, ensureIsFuction } = require('./utils')
 
 const uniqueIds = LRU({
   maxAge: 60 * 1000
 })
+
+const proxiedOptions = ld.reduce(schemas.options.properties, (result, value, key) => {
+  if (value.flaggable) { result.push(key) }
+  return result
+}, [])
 
 class Bishop extends EventEmitter2 {
 
@@ -58,7 +68,7 @@ class Bishop extends EventEmitter2 {
 /**
  *
  */
- act(...args) {
+ async act(...args) {
    const { pattern, options: actOptions } = normalizePattern(...args)
    const found = this.patternMatcher.lookup(pattern)
    if (!found) {
@@ -66,9 +76,9 @@ class Bishop extends EventEmitter2 {
    }
 
    const { payload, options: addOptions } = found
-   const result = payload(pattern, actOptions)
+   const result = await payload(pattern, actOptions)
 
-   const flags = getOption(['notify', 'timeout', 'slow', 'local', 'nowait'], actOptions, addOptions, this.options)
+   const flags = getOption(proxiedOptions, addOptions, actOptions, this.options)
 
    if (flags.notify) {
      const eventName = routingKeyFromPattern(pattern).join('.')
