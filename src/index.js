@@ -18,11 +18,6 @@ class Bishop extends EventEmitter2 {
     validateOrThrow(this.options, 'options')
 
     this.patternMatcher = bloomrun({ indexing: options.matchOrder })
-    this.patternHandlers = {
-      before: bloomrun({ indexing: options.matchOrder }),
-      after: bloomrun({ indexing: options.matchOrder })
-    }
-
     this.on('warning', console.log)
   }
 
@@ -31,13 +26,13 @@ class Bishop extends EventEmitter2 {
  */
   add(...args) {
     const payload = args.pop()
-    ensureIsFuction(payload, '.add: please pass payload in last argument')
+    ensureIsFuction(payload, 'pass the function in the last argument')
     const { pattern, options } = normalizePattern(...args)
 
     if (this.options.forbidSameRouteNames) {
       const foundPattern = this.patternMatcher.lookup(pattern, { patterns: true })
       if (ld.isEqual(foundPattern, pattern)) {
-        throw new Error(`.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(pattern)}`)
+        throw new Error(`same pattern already exists: ${beautify(pattern)}`)
       }
     }
 
@@ -52,41 +47,28 @@ class Bishop extends EventEmitter2 {
     this.patternMatcher.remove(pattern)
   }
 
-  // load module with routes
+/**
+ *
+ */
   async use(plugin, ...options) {
-    ensureIsFuction(plugin, '.use: function expected, but not found')
+    ensureIsFuction(plugin, 'function expected, but not found')
     return plugin(this, ...options)
   }
-
-
-
- /**
-  *  WARN: register('before|after', pattern, handler) order not guaranteed
-  *    .register('before', pattern, handler)
-  *    .register('after', pattern, handler)
-  */
- register(type, userPattern, handler) {
-   const patternMatcher = this.patternHandlers[type]
-   if (!patternMatcher) {
-     throw new Error(`.register: ${type} not supported`)
-   }
-   const { pattern } = normalizePattern(userPattern)
-   patternMatcher.add(pattern, { handler: ensureIsFuction(handler) })
- }
-
 
 /**
  *
  */
  act(...args) {
    const { pattern, options: actOptions } = normalizePattern(...args)
-   const { payload, options: addOptions } = this.patternMatcher.lookup(pattern)
+   const found = this.patternMatcher.lookup(pattern)
+   if (!found) {
+     throw new Error(`pattern "${beautify(pattern)}" not found`)
+   }
+
+   const { payload, options: addOptions } = found
    const result = payload(pattern, actOptions)
 
-   const flags = ['notify', 'timeout', 'slow', 'local', 'nowait'].reduce((acc, name) => {
-     acc[name] = getOption(name, actOptions, addOptions, this.options)
-     return acc
-   }, {})
+   const flags = getOption(['notify', 'timeout', 'slow', 'local', 'nowait'], actOptions, addOptions, this.options)
 
    if (flags.notify) {
      const eventName = routingKeyFromPattern(pattern).join('.')
@@ -100,7 +82,7 @@ class Bishop extends EventEmitter2 {
  */
  follow(...args) {
    const listener = args.pop()
-   ensureIsFuction(listener, '.follow: please pass listener in last argument')
+   ensureIsFuction(listener, 'pass the function in the last argument')
    const { pattern } = normalizePattern(...args)
    const eventName = `**.${routingKeyFromPattern(pattern).join('.**.')}.**`
 
@@ -122,102 +104,6 @@ class Bishop extends EventEmitter2 {
    }
    this.on(eventName, handler)
  }
-
-//   // find first matching service by pattern, and execute it
-//   //  $timeout - redefine global request timeout for network requests
-//   //  $slow - emit warning if pattern executing more than $slow ms
-//   //  $local - search only in local patterns, skip remote transports
-//   //  $nowait - resolve immediately (in case of local patterns), or then message is sent (in case of transports)
-//   //  $notify - emit event to global listeners
-//   async act() {
-//     return this.actRaw(...arguments).then(({ message }) => message)
-//   }
-//
-//   async actRaw(message, ...payloads) {
-//
-//     const actStarted = utils.calcDelay(null, false)
-//     const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
-//
-//     const normalizeHeadersParams = { actHeaders, sourceMessage,
-//       notifyableTransportsEnum: this.notifyableTransportsEnum
-//     }
-//
-//     if (ld.isEmpty(message)) {
-//       return this.emitError(
-//         new Error('.act: please specify at least one search pattern'),
-//         utils.normalizeHeaders(normalizeHeadersParams)
-//       )
-//     }
-//
-//     const patternMatcher = actHeaders.local ? this.localPatternMatcher : this.globalPatternMatcher
-//     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
-//     if (!result) {
-//       return this.emitError(
-//         new Error(`pattern not found: ${utils.beautify(sourceMessage)}`),
-//         utils.normalizeHeaders(normalizeHeadersParams)
-//       )
-//     }
-//
-//     const matchedPattern = result.pattern
-//     const [ payload, addHeaders ] = result.payload
-//
-//     // resulting message headers (heders from .act will rewrite headers from .add by default)
-//     normalizeHeadersParams.addHeaders = addHeaders
-//     normalizeHeadersParams.matchedPattern = matchedPattern
-//     const headers = utils.normalizeHeaders(normalizeHeadersParams)
-//
-//     const slowTimeoutWarning = headers.slow ? parseInt(headers.slow, 10) : this.config.slowPatternTimeout
-//     const timeout = headers.timeout ? parseInt(headers.timeout, 10) : this.config.timeout
-//
-//     // 2do: think about execution chain caching
-//     // travel over all patterns and return pass-thru chain of service calls
-//     const executionChain = [
-//       ...this.beforeGlobalHandlers,
-//       ...this.beforePatternMatcher.list(pattern).reverse(),
-//       utils.createPayloadWrapper(payload, headers, this.transports),
-//       ...this.afterPatternMatcher.list(pattern),
-//       ...this.afterGlobalHandlers
-//     ]
-//
-//     if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
-//       utils.registerGlobal(
-//         executionChain,
-//         utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log)
-//       )
-//     }
-//
-//     if (executionChain.length > this.config.maxExecutionChain) {
-//       this.log.warn(`execution chain for ${utils.beautify(sourceMessage)} is too big (${executionChain.length})`)
-//     }
-//
-//     const chainRunnerAsync = utils.createChainRunnerPromise({
-//       executionChain,
-//       pattern,
-//       headers,
-//       errorHandler: this.emitError,
-//       globalEmitter: this.eventEmitter,
-//       transports: this.transports,
-//       log: this.log
-//     })
-//
-//     if (headers.nowait) { // sometimes client dont want to wait, so we simply launch chain in async mode
-//       chainRunnerAsync()
-//       return Promise.resolve({ message: undefined, headers })
-//     }
-//
-//     if (!timeout) { // no need to handle timeout
-//       return chainRunnerAsync()
-//     }
-//
-//     return chainRunnerAsync()
-//       .timeout(timeout)
-//       .catch(Promise.TimeoutError, () => {
-//         return this.emitError(
-//           new Error(`pattern timeout after ${timeout}ms: ${utils.beautify(headers.source)}`),
-//           headers
-//         )
-//       })
-//     }
 
 }
 

@@ -2,8 +2,21 @@ const ld = require('lodash')
 const shortid = require('shortid')
 const DEFAULT_PATTERN_VALUE = '/.*/'
 
-module.exports = { beautify, normalizePattern, routingKeyFromPattern }
+module.exports = { beautify, normalizePattern, routingKeyFromPattern, ensureIsFuction, getOption }
 
+/**
+ * throws error if passed payload is not a function
+ */
+function ensureIsFuction(func, message = 'function expected') {
+  if (!func || !ld.isFunction(func)) {
+    throw new Error(message)
+  }
+  return func
+}
+
+/**
+ * converts text into object
+ */
 // 'model:comments, target, action:create' => { model: 'comments', target: /.*/, action: 'create' }
 function text2pattern(input) {
   return input.split(',').reduce((prev, cur) => {
@@ -20,7 +33,10 @@ function text2pattern(input) {
   }, {})
 }
 
-// convert object { qwe: 'aaa', asd: 'bbb'} to array [ 'asd.bbb', 'qwe.aaa' ] sorted by keys
+/**
+ * converts object into array suitable for events with sorting by keys
+ */
+// { qwe: 'aaa', asd: 'bbb'} => [ 'asd.bbb', 'qwe.aaa' ]
 function routingKeyFromPattern(pattern, replaceWild = '*') {
   return Object.keys(pattern).sort().map(key => {
     const keyType = typeof pattern[key]
@@ -29,36 +45,39 @@ function routingKeyFromPattern(pattern, replaceWild = '*') {
   })
 }
 
-
 /**
- *
+ * returns copy of object created from string or another object
  */
 function objectify(obj) {
   return ld.isString(obj) ? text2pattern(obj) : ld.cloneDeep(obj)
 }
 
 /**
- *
+ * returns human-readable object
  */
- function beautify(obj) {
-   return ld.keys(obj).map(key => {
-     const value = obj[key]
-     if (ld.isPlainObject(value)) {
-       return `${key}:{${ld.keys(value).join(',')}}`
-     }
-     return value ? `${key}:${value.toString()}` : key
-   }).join(', ')
- }
+function beautify(obj) {
+ return ld.keys(obj).map(key => {
+   const value = obj[key]
+   if (ld.isPlainObject(value)) {
+     return `${key}:{${ld.keys(value).join(',')}}`
+   }
+   return value ? `${key}:${value.toString()}` : key
+ }).join(', ')
+}
 
 
 /**
- * Split all patterns into one, extract payload and meta info
+ * split all patterns into one, extract payload and meta info
+ * adds 'id' into meta if does not exist
  */
 function normalizePattern(...args) {
   const options = {}
   const pattern = {}
   const raw = {}
   args.forEach(item => {
+    if (ld.isEmpty(item)) {
+      throw new Error('you are trying to add an empty pattern, they are forbidden')
+    }
     const partialPattern = objectify(item)
     for (let field in partialPattern) {
       if (field[0] === '$') { // meta info like $timeout, $debug etc
@@ -73,4 +92,13 @@ function normalizePattern(...args) {
     options.id = shortid.generate()
   }
   return { pattern, options, raw }
+}
+
+/**
+ * resolves valid options from specified configs
+ */
+function getOption(name, ...spreadedOptions) {
+  const names = ld.isArray(name) ? name : [ name ]
+  const options = ld.defaults({}, ...spreadedOptions)
+  return ld.pick(options, names)
 }
