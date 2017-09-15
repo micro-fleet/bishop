@@ -8,5 +8,6 @@ async .use(plugin, ...options)
 
 `notify.${id}.success`
 `notify.${id}.fail`
-`warning`
+`slow` (pattern) // default consolelog
+`warning` // default consolelog
 `routingKeyFromPattern(pattern).join('.')`

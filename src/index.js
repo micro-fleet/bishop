@@ -1,7 +1,6 @@
 /**
 2do: method to proxy headers
 2do: global option for getOption order
-2do: $timeout support
 2do: $slow support
 2do: send name/version in headers
 2do: generate unique request id if not exists
@@ -39,6 +38,7 @@ class Bishop extends EventEmitter2 {
 
     this.patternMatcher = bloomrun({ indexing: options.matchOrder })
     this.on('warning', console.log)
+    this.on('slow', console.log)
   }
 
 /**
@@ -88,6 +88,8 @@ class Bishop extends EventEmitter2 {
    const { payload, options: addOptions } = found
    const flags = getOption(proxiedOptions, addOptions, actOptions, this.options)
 
+   const start = flags.slow && new Date().getTime()
+
    const wrapAction = (...args) => { // https://github.com/petkaantonov/bluebird/issues/1200
      if (flags.timeout) {
        return Promise.resolve(payload(...args)).timeout(flags.timeout)
@@ -98,10 +100,17 @@ class Bishop extends EventEmitter2 {
    return wrapAction(pattern, actOptions).catch(Promise.TimeoutError, err => {
      throw new errors.TimeoutError(`${beautify(pattern)} - ${err.message}`)
    }).tap(result => {
+     if (start) {
+       const executionTime = new Date().getTime() - start
+       if (executionTime > flags.slow) {
+         this.emit('slow', pattern)
+       }
+     }
      if (flags.notify) {
        const eventName = routingKeyFromPattern(pattern).join('.')
        this.emit(eventName, result, pattern, actOptions)
      }
+
    })
  }
 
