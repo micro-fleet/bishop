@@ -28,6 +28,7 @@
     "ajv": "^5.2.2",
     "bloomrun": "3.0.2",
     "bluebird": "^3.4.6",
+    "common-errors": "^1.0.4",
     "eventemitter2": "^4.1.0",
     "lodash": "^4.17.4",
     "lru-cache": "^4.1.1",

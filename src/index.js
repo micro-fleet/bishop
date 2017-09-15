@@ -1,9 +1,19 @@
 /**
+2do: method to proxy headers
+2do: global option for getOption order
+2do: $timeout support
+2do: $slow support
+2do: send name/version in headers
+2do: generate unique request id if not exists
 2do: cache .act requests
+2do: versioning support
 2do: tests
 2do: readme
+
+2do: think about optional eventemitters: amqp?
 */
 const bloomrun = require('bloomrun')
+const errors = require('common-errors')
 const ld = require('lodash')
 const { EventEmitter2 } = require('eventemitter2')
 const LRU = require('lru-cache')
@@ -76,15 +86,23 @@ class Bishop extends EventEmitter2 {
    }
 
    const { payload, options: addOptions } = found
-   const result = await payload(pattern, actOptions)
-
    const flags = getOption(proxiedOptions, addOptions, actOptions, this.options)
 
-   if (flags.notify) {
-     const eventName = routingKeyFromPattern(pattern).join('.')
-     this.emit(eventName, result, pattern, actOptions)
+   const wrapAction = (...args) => { // https://github.com/petkaantonov/bluebird/issues/1200
+     if (flags.timeout) {
+       return Promise.resolve(payload(...args)).timeout(flags.timeout)
+     }
+      return Promise.resolve(payload(...args))
    }
-   return result
+
+   return wrapAction(pattern, actOptions).catch(Promise.TimeoutError, err => {
+     throw new errors.TimeoutError(`${beautify(pattern)} - ${err.message}`)
+   }).tap(result => {
+     if (flags.notify) {
+       const eventName = routingKeyFromPattern(pattern).join('.')
+       this.emit(eventName, result, pattern, actOptions)
+     }
+   })
  }
 
 /**
