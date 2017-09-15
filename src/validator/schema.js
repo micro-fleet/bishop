@@ -2,12 +2,12 @@ module.exports = {
   description: 'Default bishop options',
   type: 'object',
   properties: {
-    name: {
-      description: 'Service name',
-      type: 'string',
-      format: 'name',
-      default: 'bishop',
-    },
+    // name: {
+    //   description: 'Service name',
+    //   type: 'string',
+    //   format: 'name',
+    //   default: 'bishop',
+    // },
     version: {
       description: 'Service version',
       type: 'number',

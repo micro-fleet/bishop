@@ -1,4 +1,5 @@
 /**
+2do: interact over events (to support versioning)
 2do: versioning support // $match
 
 2do: send name/version in headers
@@ -50,7 +51,6 @@ class Bishop extends EventEmitter2 {
         throw new Error(`same pattern already exists: ${beautify(pattern)}`)
       }
     }
-
     this.patternMatcher.add(pattern, { payload, options })
   }
 
@@ -83,14 +83,12 @@ class Bishop extends EventEmitter2 {
    const { payload, options: addOptions } = found
 
    const flags = getOption(addOptions, actOptions, this.options)
-
    const start = flags.slow && new Date().getTime()
 
    const wrapAction = (...args) => { // https://github.com/petkaantonov/bluebird/issues/1200
      if (flags.timeout) {
        return Promise.resolve(payload(...args)).timeout(flags.timeout)
      }
-
      return Promise.resolve(payload(...args))
    }
 
@@ -107,7 +105,6 @@ class Bishop extends EventEmitter2 {
        const eventName = routingKeyFromPattern(pattern).join('.')
        this.emit(eventName, result, pattern, actOptions)
      }
-
    })
  }
 
