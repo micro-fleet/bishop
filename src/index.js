@@ -1,4 +1,6 @@
 /**
+2do: request versioning support
+2do: send name & version in actions
 2do: cache .act requests
 2do: tests
 2do: readme

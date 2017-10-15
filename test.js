@@ -1,4 +1,4 @@
-const Bishop = require('./src')
+const Bishop = require('./')
 const bishop = new Bishop({
   // notify: true
 })
