@@ -37,7 +37,7 @@ const defaultConfig = {
       sampler: {
         // const, probabilistic, ratelimiting, lowerbound, remote
         type: 'const',
-        param: 1
+        param: 0
       }
     },
     options: {
@@ -58,7 +58,7 @@ const uniqueIds = LRU({
 
 class Bishop {
   constructor(userConfig) {
-    const config = (this.config = Object.assign({}, defaultConfig, userConfig))
+    const config = (this.config = ld.defaultsDeep({}, userConfig, defaultConfig))
     this.log = config.logger
 
     // listen incoming events and handle corresponding patterns
