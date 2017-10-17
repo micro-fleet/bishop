@@ -37,7 +37,7 @@ const defaultConfig = {
       sampler: {
         // const, probabilistic, ratelimiting, lowerbound, remote
         type: 'const',
-        param: 0
+        param: 1
       }
     },
     options: {
@@ -106,7 +106,7 @@ class Bishop {
     tags[opentracing.Tags.COMPONENT] = 'bishop'
     tags[bishopTracingTags.VERSION] = version
     tags['nodejs.version'] = process.versions.node
-    this.tracer = jaeger.initTracer(traceOptions)
+    this.tracer = jaeger.initTracer(traceOptions.config, traceOptions.options)
   }
 
   // register payload for specified pattern
@@ -145,7 +145,7 @@ class Bishop {
         // do not emit same message
         return
       }
-      const span = utils.createTraceSpan(tracer, 'follow', 'plain', headers.trace)
+      const span = utils.createTraceSpan(tracer, 'follow', 'headers', headers.trace)
       if (!headers.trace) {
         // add non-existing tags
         span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)
@@ -249,8 +249,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = utils.calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
-    const span = utils.createTraceSpan(this.tracer, 'act', 'plain', actHeaders.trace)
-    span.setTag(bishopTracingTags.SPAN_KIND_RPC_CLIENT, true)
+    const span = utils.createTraceSpan(this.tracer, 'act', 'headers', actHeaders.trace)
+    span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
     span.setTag(bishopTracingTags.PATTERNACT, pattern)
 
     const normalizeHeadersParams = {
@@ -340,8 +340,11 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
 
     if (!timeout) {
+      span.finish()
       // no need to handle timeout
-      return chainRunnerAsync()
+      return chainRunnerAsync().tap(() => {
+        span.finish()
+      })
     }
 
     return chainRunnerAsync()
@@ -352,6 +355,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
           headers,
           span
         )
+      })
+      .tap(() => {
+        span.finish()
       })
   }
 }

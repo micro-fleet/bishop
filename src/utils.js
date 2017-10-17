@@ -43,22 +43,24 @@ function createTraceSpan(tracer, name, parentFormat, parentData = null) {
     return tracer.startSpan(name)
   }
   switch (parentFormat) {
-    case 'span':
+    case 'parent':
       return tracer.startSpan(name, {
-        childOf: parentData
+        childOf: parentData.context()
       })
     case 'headers':
       return tracer.startSpan(name, {
         childOf: tracer.extract(opentracing.FORMAT_HTTP_HEADERS, parentData)
       })
     case 'plain':
+      jaeger.SpanContext.fromString(parentData)
+
       return tracer.startSpan(name, { childOf: jaeger.SpanContext.fromString(parentData) })
   }
   throw new Error(`format ${parentFormat} not supported`)
 }
 
 function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
-  const span = createTraceSpan(tracer, peerService || 'local', 'span', parentSpan)
+  const span = createTraceSpan(tracer, `add:${peerService || 'local'}`, 'parent', parentSpan)
   return (...args) => {
     return Promise.resolve(payload(...args))
       .catch(err => {
@@ -71,7 +73,6 @@ function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
         throw err
       })
       .finally(() => {
-        // 2do: did we expect bluebird-compatible promise always?
         span.finish()
       })
   }
@@ -348,14 +349,10 @@ module.exports = {
             message: err.message,
             stack: err.stack
           })
-          span.finish()
           return {
             message: errorHandler(err, headers),
             headers
           }
-        })
-        .finally(() => {
-          span.finish()
         })
     }
   }

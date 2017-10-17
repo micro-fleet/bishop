@@ -46,9 +46,9 @@ test('remove pattern operation', async t => {
 
 test('invalid parameters', async t => {
   const bishop = new Bishop()
-  t.throws(bishop.act(), /at least one search pattern/)
-  t.throws(bishop.act('role: test, act: nosuch'), /pattern not found/)
-  t.throws(() => {
+  await t.throws(bishop.act(), /at least one search pattern/)
+  await t.throws(bishop.act('role: test, act: nosuch'), /pattern not found/)
+  await t.throws(() => {
     bishop.add('role: test, act: not-registered')
   }, /pass pattern handler/)
 })
