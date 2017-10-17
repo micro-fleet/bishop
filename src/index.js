@@ -1,11 +1,12 @@
 const jaeger = require('jaeger-client')
+const opentracing = require('opentracing')
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
 const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
 const utils = require('./utils')
 const LRU = require('lru-cache')
-const { version } = require('./package')
+const { version } = require('../package')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -45,6 +46,12 @@ const defaultConfig = {
   }
 }
 
+const bishopTracingTags = {
+  VERSION: 'bishop.version',
+  PATTERNMATCH: 'bishop.pattern.match',
+  PATTERNACT: 'bishop.pattern.act'
+}
+
 const uniqueIds = LRU({
   maxAge: 60 * 1000
 })
@@ -68,9 +75,18 @@ class Bishop {
       function errorHandler(err) {
         throw err
       }
-    this.emitError = (error, headers = {}) => {
+    this.emitError = (error, headers = {}, span = null) => {
       // default error handler
       this.eventEmitter.emit(`pattern.${headers.id || 'unknown'}.error`, error, headers)
+      if (span) {
+        span.setTag(opentracing.Tags.ERROR, true)
+        span.log({
+          event: 'error',
+          message: error.message,
+          stack: error.stack
+        })
+        span.finish()
+      }
       return this.userErrorHandler(error, headers)
     }
 
@@ -85,13 +101,11 @@ class Bishop {
     this.transports = {} // transportName: { options, follow, notify, request }
     this.followableTransportsEnum = []
 
-    const traceOptions = options.opentracing || {}
-    traceOptions.tags = {
-      ...traceOptions.tags,
-      'bishop.version': version,
-      'nodejs.version': process.versions.node
-    }
-
+    const traceOptions = config.opentracing || {}
+    const tags = (traceOptions.tags = traceOptions.tags || {})
+    tags[opentracing.Tags.COMPONENT] = 'bishop'
+    tags[bishopTracingTags.VERSION] = version
+    tags['nodejs.version'] = process.versions.node
     this.tracer = jaeger.initTracer(traceOptions)
   }
 
@@ -121,16 +135,19 @@ class Bishop {
   // listen for pattern and execute payload on success
   async follow(message, listener) {
     const [pattern, headers] = utils.split(message)
-    const span = this.createTraceSpan(this.tracer, 'bishop', 'plain', headers.trace)
     const ignoreSameMessage = this.config.ignoreSameMessage
     const eventEmitter = this.eventEmitter
 
     async function handler(message, headers) {
       const id = headers.id
-
       if (ignoreSameMessage && uniqueIds.has(id)) {
         // do not emit same message
         return
+      }
+      const span = utils.createTraceSpan(this.tracer, 'follow', 'plain', headers.trace)
+      if (!headers.trace) {
+        // add non-existing tags
+        span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)
       }
       uniqueIds.set(id, true)
 
@@ -138,8 +155,15 @@ class Bishop {
         const result = await listener(message, headers)
         eventEmitter.emit(`notify.${id}.success`, result, message, headers)
       } catch (err) {
+        span.setTag(opentracing.Tags.ERROR, true)
+        span.log({
+          event: 'error',
+          message: err.message,
+          stack: err.stack
+        })
         eventEmitter.emit(`notify.${id}.error`, err, message, headers)
       }
+      span.finish()
     }
     // subscribe to local event
     // https://github.com/asyncly/EventEmitter2#multi-level-wildcards
@@ -224,6 +248,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = utils.calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
+    const span = utils.createTraceSpan(this.tracer, 'act', 'plain', actHeaders.trace)
+    span.setTag(bishopTracingTags.SPAN_KIND_RPC_CLIENT, true)
+    span.setTag(bishopTracingTags.PATTERNACT, pattern)
 
     const normalizeHeadersParams = {
       actHeaders,
@@ -234,7 +261,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     if (ld.isEmpty(message)) {
       return this.emitError(
         new Error('.act: please specify at least one search pattern'),
-        utils.normalizeHeaders(normalizeHeadersParams)
+        utils.normalizeHeaders(normalizeHeadersParams),
+        span
       )
     }
 
@@ -243,12 +271,14 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     if (!result) {
       return this.emitError(
         new Error(`pattern not found: ${utils.beautify(sourceMessage)}`),
-        utils.normalizeHeaders(normalizeHeadersParams)
+        utils.normalizeHeaders(normalizeHeadersParams),
+        span
       )
     }
 
     const matchedPattern = result.pattern
     const [payload, addHeaders] = result.payload
+    span.setTag(bishopTracingTags.PATTERNMATCH, matchedPattern)
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
     normalizeHeadersParams.addHeaders = addHeaders
@@ -265,7 +295,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     const executionChain = [
       ...this.beforeGlobalHandlers,
       ...this.beforePatternMatcher.list(pattern).reverse(),
-      utils.createPayloadWrapper(payload, headers, this.transports),
+      utils.createPayloadWrapper(payload, headers, this.transports, this.tracer, span),
       ...this.afterPatternMatcher.list(pattern),
       ...this.afterGlobalHandlers
     ]
@@ -274,14 +304,20 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       // emit warning about slow timeout in the end of execution chain
       utils.registerGlobal(
         executionChain,
-        utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log)
+        utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log, span)
       )
     }
 
     if (executionChain.length > this.config.maxExecutionChain) {
-      this.log.warn(
-        `execution chain for ${utils.beautify(sourceMessage)} is too big (${executionChain.length})`
-      )
+      const text = `execution chain for ${utils.beautify(
+        sourceMessage
+      )} is too big (${executionChain.length})`
+
+      this.log.warn(text)
+      span.log({
+        event: 'info',
+        message: text
+      })
     }
 
     const chainRunnerAsync = utils.createChainRunnerPromise({
@@ -291,12 +327,14 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       errorHandler: this.emitError,
       globalEmitter: this.eventEmitter,
       transports: this.transports,
-      log: this.log
+      log: this.log,
+      span
     })
 
     if (headers.nowait) {
       // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunnerAsync()
+      span.finish()
       return Promise.resolve({ message: undefined, headers })
     }
 
@@ -310,7 +348,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       .catch(Promise.TimeoutError, () => {
         return this.emitError(
           new Error(`pattern timeout after ${timeout}ms: ${utils.beautify(headers.source)}`),
-          headers
+          headers,
+          span
         )
       })
   }

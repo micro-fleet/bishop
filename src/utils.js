@@ -38,6 +38,45 @@ const areHeadersValid = ajv.compile({
   }
 })
 
+function createTraceSpan(tracer, name, parentFormat, parentData = null) {
+  if (!parentData) {
+    return tracer.startSpan(name)
+  }
+  switch (parentFormat) {
+    case 'span':
+      return tracer.startSpan(name, {
+        childOf: parentData
+      })
+    case 'headers':
+      return tracer.startSpan(name, {
+        childOf: tracer.extract(opentracing.FORMAT_HTTP_HEADERS, parentData)
+      })
+    case 'plain':
+      return tracer.startSpan(name, { childOf: jaeger.SpanContext.fromString(parentData) })
+  }
+  throw new Error(`format ${parentFormat} not supported`)
+}
+
+// function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
+//   const span = createTraceSpan(tracer, peerService || 'local', 'span', parentSpan)
+//   return (...args) => {
+//     return payload(...args)
+//       .catch(err => {
+//         span.setTag(opentracing.Tags.ERROR, true)
+//         span.log({
+//           event: 'error',
+//           message: err.message,
+//           stack: err.stack
+//         })
+//         throw err
+//       })
+//       .finally(() => {
+//         // 2do: did we expect bluebird-compatible promise always?
+//         span.finish()
+//       })
+//   }
+// }
+
 /**
  * Send bishop pattern execution event to all listeners
  */
@@ -151,21 +190,7 @@ module.exports = {
   split,
   beautify,
   routingKeyFromPattern,
-
-  createTraceSpan(tracer, name, parentFormat, parentData = null) {
-    if (!parentData) {
-      return tracer.startSpan(name)
-    }
-    switch (parentFormat) {
-      case 'headers':
-        return tracer.startSpan(name, {
-          childOf: tracer.extract(opentracing.FORMAT_HTTP_HEADERS, parentData)
-        })
-      case 'plain':
-        return tracer.startSpan(name, { childOf: jaeger.SpanContext.fromString(parentData) })
-    }
-    throw new Error(`format ${parentFormat} not supported`)
-  },
+  createTraceSpan,
 
   registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
     if (remoteTransportsStorage[name]) {
@@ -201,9 +226,10 @@ module.exports = {
     }
   },
 
-  createPayloadWrapper(payload, headers, remoteTransportsStorage) {
+  createPayloadWrapper(payload, headers, remoteTransportsStorage /*tracer , parentSpan*/) {
     if (headers.local || ld.isFunction(payload)) {
       // this method found in local patterns
+      // return [wrapFunctionWithTracer(payload, tracer, parentSpan), {}]
       return [payload, {}]
     }
     // thereis a string in payload - redirect to external transport
@@ -215,16 +241,22 @@ module.exports = {
       // redefine pattern timeout if transport-specific is set
       headers.timeout = options.timeout
     }
+    // return [wrapFunctionWithTracer(request, tracer, parentSpan, payload), {}]
     return [request, {}]
   },
 
-  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger) {
+  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger, span) {
     const actStarted = userTime || calcDelay(null, false)
     return message => {
       const executionTime = calcDelay(actStarted, false)
+      const text = `pattern executed in ${executionTime}ms: ${beautify(headers.source)}`
       if (executionTime > slowTimeoutWarning) {
-        logger.warn(`pattern executed in ${executionTime}ms: ${beautify(headers.source)}`)
+        logger.warn(text)
       }
+      span.log({
+        event: 'info',
+        message: text
+      })
       return message
     }
   },
@@ -273,7 +305,8 @@ module.exports = {
     errorHandler,
     globalEmitter,
     transports,
-    log
+    log,
+    span
   }) {
     // NOTE: `headers` can be modified by chain item
     return () => {
@@ -311,10 +344,20 @@ module.exports = {
           return { message, headers }
         })
         .catch(err => {
+          span.setTag(opentracing.Tags.ERROR, true)
+          span.log({
+            event: 'error',
+            message: err.message,
+            stack: err.stack
+          })
+          span.finish()
           return {
             message: errorHandler(err, headers),
             headers
           }
+        })
+        .finally(() => {
+          span.finish()
         })
     }
   }
