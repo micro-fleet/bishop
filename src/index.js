@@ -137,6 +137,7 @@ class Bishop {
     const [pattern, headers] = utils.split(message)
     const ignoreSameMessage = this.config.ignoreSameMessage
     const eventEmitter = this.eventEmitter
+    const tracer = this.tracer
 
     async function handler(message, headers) {
       const id = headers.id
@@ -144,7 +145,7 @@ class Bishop {
         // do not emit same message
         return
       }
-      const span = utils.createTraceSpan(this.tracer, 'follow', 'plain', headers.trace)
+      const span = utils.createTraceSpan(tracer, 'follow', 'plain', headers.trace)
       if (!headers.trace) {
         // add non-existing tags
         span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)

@@ -62,8 +62,11 @@ test('check $timeout', async t => {
     }
     return 'success'
   })
-  t.is(await bishop.act('role:test ,act:timeout'), 'success' )
-  await t.throws(bishop.act('role:test, act:timeout', { delay: timeout + 100 }), /pattern timeout after/)
+  t.is(await bishop.act('role:test ,act:timeout'), 'success')
+  await t.throws(
+    bishop.act('role:test, act:timeout', { delay: timeout + 100 }),
+    /pattern timeout after/
+  )
 })
 
 test('check $nowait', async t => {
@@ -117,7 +120,7 @@ test('.register', async t => {
   const result = await bishop.act('role:test, act:register, other:option', {
     chain: []
   })
-  t.deepEqual(result, [ 'step1', 'step2', 'step3' ])
+  t.deepEqual(result, ['step1', 'step2', 'step3'])
 })
 
 test('.register and break execution', async t => {
@@ -167,8 +170,20 @@ test('complete execution chain using .register', async t => {
   })
   bishop.register('before', 'role:test', add2message('step #3'))
   bishop.register('before', 'role:test, act:chain', add2message('step #4'))
-  const { item } = await bishop.act('role:test, act:chain, subitem: true', { item: [], otherpayload: 'somedata' })
-  t.deepEqual(item, [ 'step #1', 'step #2', 'step #3', 'step #4', 'normal action', 'step #5', 'step #6', 'step #7' ])
+  const { item } = await bishop.act('role:test, act:chain, subitem: true', {
+    item: [],
+    otherpayload: 'somedata'
+  })
+  t.deepEqual(item, [
+    'step #1',
+    'step #2',
+    'step #3',
+    'step #4',
+    'normal action',
+    'step #5',
+    'step #6',
+    'step #7'
+  ])
 })
 
 test('error handlers', async t => {
@@ -191,7 +206,6 @@ test('error handlers', async t => {
   t.is(customError.message, 'custom error')
 })
 
-
 test('test bug #55', async t => {
   // https://github.com/mcollina/bloomrun/issues/55
 
@@ -202,7 +216,6 @@ test('test bug #55', async t => {
   bishop.add('role:tag, cmd:find, count', () => 'tag,find,count')
   bishop.add('role:location, cmd:find, count', () => 'location,find,count')
 
-
   const test = {}
   test['tag,find,count'] = await bishop.act('role:tag, cmd:find, count:true')
   test['tag,find'] = await bishop.act('role:tag, cmd:find')
@@ -212,5 +225,4 @@ test('test bug #55', async t => {
   for (let name in test) {
     t.is(name, test[name], `"${test[name]}" shoud be equal "${name}"`)
   }
-
 })

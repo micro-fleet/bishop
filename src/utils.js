@@ -57,25 +57,25 @@ function createTraceSpan(tracer, name, parentFormat, parentData = null) {
   throw new Error(`format ${parentFormat} not supported`)
 }
 
-// function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
-//   const span = createTraceSpan(tracer, peerService || 'local', 'span', parentSpan)
-//   return (...args) => {
-//     return payload(...args)
-//       .catch(err => {
-//         span.setTag(opentracing.Tags.ERROR, true)
-//         span.log({
-//           event: 'error',
-//           message: err.message,
-//           stack: err.stack
-//         })
-//         throw err
-//       })
-//       .finally(() => {
-//         // 2do: did we expect bluebird-compatible promise always?
-//         span.finish()
-//       })
-//   }
-// }
+function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
+  const span = createTraceSpan(tracer, peerService || 'local', 'span', parentSpan)
+  return (...args) => {
+    return Promise.resolve(payload(...args))
+      .catch(err => {
+        span.setTag(opentracing.Tags.ERROR, true)
+        span.log({
+          event: 'error',
+          message: err.message,
+          stack: err.stack
+        })
+        throw err
+      })
+      .finally(() => {
+        // 2do: did we expect bluebird-compatible promise always?
+        span.finish()
+      })
+  }
+}
 
 /**
  * Send bishop pattern execution event to all listeners
@@ -226,11 +226,10 @@ module.exports = {
     }
   },
 
-  createPayloadWrapper(payload, headers, remoteTransportsStorage /*tracer , parentSpan*/) {
+  createPayloadWrapper(payload, headers, remoteTransportsStorage, tracer, parentSpan) {
     if (headers.local || ld.isFunction(payload)) {
       // this method found in local patterns
-      // return [wrapFunctionWithTracer(payload, tracer, parentSpan), {}]
-      return [payload, {}]
+      return [wrapFunctionWithTracer(payload, tracer, parentSpan), {}]
     }
     // thereis a string in payload - redirect to external transport
     const { request, options } = remoteTransportsStorage[payload] || {}
@@ -241,8 +240,7 @@ module.exports = {
       // redefine pattern timeout if transport-specific is set
       headers.timeout = options.timeout
     }
-    // return [wrapFunctionWithTracer(request, tracer, parentSpan, payload), {}]
-    return [request, {}]
+    return [wrapFunctionWithTracer(request, tracer, parentSpan, payload), {}]
   },
 
   createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger, span) {
