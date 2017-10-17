@@ -22,16 +22,21 @@
   "devDependencies": {
     "ava": "^0.19.1",
     "eslint": "^4.0.0",
+    "eslint-config-prettier": "^2.6.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
-    "nyc": "^11.0.2"
+    "eslint-plugin-prettier": "^2.3.1",
+    "nyc": "^11.0.2",
+    "prettier": "^1.7.4"
   },
   "dependencies": {
     "ajv": "^5.1.5",
     "bloomrun": "3.0.2",
     "bluebird": "^3.4.6",
     "eventemitter2": "^4.1.0",
+    "jaeger-client": "^3.5.3",
     "lodash": "^4.17.4",
-    "lru-cache": "^4.1.1"
+    "lru-cache": "^4.1.1",
+    "opentracing": "^0.14.1"
   },
   "ava": {
     "verbose": true,

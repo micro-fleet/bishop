@@ -1,6 +1,8 @@
 const ld = require('lodash')
 const Promise = require('bluebird')
 const Ajv = require('ajv')
+const jaeger = require('jaeger-client')
+const opentracing = require('opentracing')
 
 const ajv = new Ajv({
   coerceTypes: 'array',
@@ -28,7 +30,7 @@ const areHeadersValid = ajv.compile({
     notify: {
       type: 'array',
       items: {
-        type: 'string',
+        type: 'string'
       },
       minItems: 1,
       uniqueItems: true
@@ -39,15 +41,19 @@ const areHeadersValid = ajv.compile({
 /**
  * Send bishop pattern execution event to all listeners
  */
-function notifyListenersAboutEvent({ message, headers}, transports, globalEmitter) {
-  if (!headers.notify) { return }
+function notifyListenersAboutEvent({ message, headers }, transports, globalEmitter) {
+  if (!headers.notify) {
+    return
+  }
   if (headers.notify.includes('local')) {
     const uniqueEvent = `${routingKeyFromPattern(headers.pattern, '#').join('.')}`
     globalEmitter.emit(uniqueEvent, message, headers)
   }
 
   return Promise.map(headers.notify, transportName => {
-    if (transportName === 'local') { return }
+    if (transportName === 'local') {
+      return
+    }
     const notifyTransportSubscribers = transports[transportName].notify
     return notifyTransportSubscribers(message, headers)
   })
@@ -56,7 +62,7 @@ function notifyListenersAboutEvent({ message, headers}, transports, globalEmitte
 function calcDelay(offset, inNanoSeconds = true) {
   const now = (() => {
     if (inNanoSeconds) {
-      const [ seconds, nanoseconds ] = process.hrtime()
+      const [seconds, nanoseconds] = process.hrtime()
       return seconds * 1e9 + nanoseconds
     }
     return new Date().getTime()
@@ -67,14 +73,13 @@ function calcDelay(offset, inNanoSeconds = true) {
 // 'model:comments, target, action:create' => { model: 'comments', target: /.*/, action: 'create' }
 function text2obj(input) {
   const output = input.split(',').reduce((prev, cur) => {
-    let [ key, value ] = cur.trim().split(':')
+    let [key, value] = cur.trim().split(':')
     if (typeof value === 'undefined') {
       value = regExpAll.toString()
     }
     const trimmedValue = value.trim()
-    prev[key.trim()] = trimmedValue[0] === '/' ?
-      new RegExp(trimmedValue.slice(1, -1)) :
-      trimmedValue
+    prev[key.trim()] =
+      trimmedValue[0] === '/' ? new RegExp(trimmedValue.slice(1, -1)) : trimmedValue
     return prev
   }, {})
   return output
@@ -99,7 +104,8 @@ function split(...args) {
   args.forEach(item => {
     const partialPattern = objectify(item)
     for (let field in partialPattern) {
-      if (field[0] === '$') { // meta info like $timeout, $debug etc
+      if (field[0] === '$') {
+        // meta info like $timeout, $debug etc
         meta[field.substring(1)] = partialPattern[field]
       } else {
         message[field] = partialPattern[field]
@@ -107,26 +113,31 @@ function split(...args) {
       raw[field] = partialPattern[field]
     }
   })
-  return [ message, meta, raw ]
+  return [message, meta, raw]
 }
 
 function beautify(obj) {
-  return ld.keys(obj).map(key => {
-    const value = obj[key]
-    if (ld.isPlainObject(value)) {
-      return `${key}:{${ld.keys(value).join(',')}}`
-    }
-    return value ? `${key}:${value.toString()}` : key
-  }).join(', ')
+  return ld
+    .keys(obj)
+    .map(key => {
+      const value = obj[key]
+      if (ld.isPlainObject(value)) {
+        return `${key}:{${ld.keys(value).join(',')}}`
+      }
+      return value ? `${key}:${value.toString()}` : key
+    })
+    .join(', ')
 }
 
 // convert object { qwe: 'aaa', asd: 'bbb'} to string 'qwe.aaa.asd.bbb' with sorted keys
 function routingKeyFromPattern(pattern, replaceWild = '*') {
-  return Object.keys(pattern).sort().map(key => {
-    const keyType = typeof pattern[key]
-    const value = keyType === 'string' ? pattern[key] : replaceWild
-    return `${key}.${value}`
-  })
+  return Object.keys(pattern)
+    .sort()
+    .map(key => {
+      const keyType = typeof pattern[key]
+      const value = keyType === 'string' ? pattern[key] : replaceWild
+      return `${key}.${value}`
+    })
 }
 
 function uniqueId() {
@@ -134,8 +145,27 @@ function uniqueId() {
 }
 
 module.exports = {
+  calcDelay,
+  ensureIsFuction,
+  objectify,
+  split,
+  beautify,
+  routingKeyFromPattern,
 
-  calcDelay, ensureIsFuction, objectify, split, beautify, routingKeyFromPattern,
+  createTraceSpan(tracer, name, parentFormat, parentData = null) {
+    if (!parentData) {
+      return tracer.startSpan(name)
+    }
+    switch (parentFormat) {
+      case 'headers':
+        return tracer.startSpan(name, {
+          childOf: tracer.extract(opentracing.FORMAT_HTTP_HEADERS, parentData)
+        })
+      case 'plain':
+        return tracer.startSpan(name, { childOf: jaeger.SpanContext.fromString(parentData) })
+    }
+    throw new Error(`format ${parentFormat} not supported`)
+  },
 
   registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
     if (remoteTransportsStorage[name]) {
@@ -152,34 +182,40 @@ module.exports = {
   },
 
   registerInMatcher(matcher, message, payload) {
-    const [ pattern, options ] = ld.isArray(message) ? message : split(message)
-    matcher.add(pattern, [ payload, options ])
+    const [pattern, options] = ld.isArray(message) ? message : split(message)
+    matcher.add(pattern, [payload, options])
   },
 
   registerGlobal(globalQueue, payload) {
-    globalQueue.push([ payload, {} ])
+    globalQueue.push([payload, {}])
   },
 
   throwIfPatternExists(matcher, pattern) {
     const foundPattern = matcher.lookup(pattern, { patterns: true })
     if (ld.isEqual(foundPattern, pattern)) {
-      throw new Error(`.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(pattern)}`)
+      throw new Error(
+        `.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(
+          pattern
+        )}`
+      )
     }
   },
 
   createPayloadWrapper(payload, headers, remoteTransportsStorage) {
-    if(headers.local || ld.isFunction(payload)) { // this method found in local patterns
-      return [ payload, {} ]
+    if (headers.local || ld.isFunction(payload)) {
+      // this method found in local patterns
+      return [payload, {}]
     }
     // thereis a string in payload - redirect to external transport
     const { request, options } = remoteTransportsStorage[payload] || {}
     if (!request) {
       throw new Error(`transport ${payload} has no .request method`)
     }
-    if (options.timeout && !headers.timeout) { // redefine pattern timeout if transport-specific is set
+    if (options.timeout && !headers.timeout) {
+      // redefine pattern timeout if transport-specific is set
       headers.timeout = options.timeout
     }
-    return [ request, {} ]
+    return [request, {}]
   },
 
   createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger) {
@@ -193,7 +229,7 @@ module.exports = {
     }
   },
 
-  normalizeHeaders({addHeaders, actHeaders, sourceMessage, matchedPattern}) {
+  normalizeHeaders({ addHeaders, actHeaders, sourceMessage, matchedPattern }) {
     const headers = ld.merge({}, addHeaders, actHeaders, {
       pattern: matchedPattern,
       source: sourceMessage
@@ -214,54 +250,72 @@ module.exports = {
           if (headers.notify instanceof RegExp) {
             headers.notify = ['local']
           } else {
-            headers.notify = headers.notify.split(',').map(item => item.trim()).filter(item => item)
+            headers.notify = headers.notify
+              .split(',')
+              .map(item => item.trim())
+              .filter(item => item)
           }
       }
     }
 
-    if (!areHeadersValid(headers)) { // should append defaults, convert values into valid ones etc
+    if (!areHeadersValid(headers)) {
+      // should append defaults, convert values into valid ones etc
       throw new Error(ajv.errorsText(areHeadersValid.errors))
     }
     return headers
   },
 
   // create cancelable promise from chain of payloads
-  createChainRunnerPromise({ executionChain, pattern, headers, errorHandler, globalEmitter, transports, log }) {
+  createChainRunnerPromise({
+    executionChain,
+    pattern,
+    headers,
+    errorHandler,
+    globalEmitter,
+    transports,
+    log
+  }) {
     // NOTE: `headers` can be modified by chain item
     return () => {
-      return Promise.reduce(executionChain, (input, chainItem) => {
-        const [ handlerAsync ] = chainItem
-        if (headers.break) { // should break execution and immediately return result
-          const error = new Promise.CancellationError('$break found')
-          error.message = input
-          error.headers = headers
-          throw error
-        }
-        return handlerAsync(input, headers)
-      }, pattern)
-      .then(message => {
-        return { message, headers }
-      })
-      .then(async data => {
-        if (data.headers.notify) {
-          // notify listeners in async mode without block
-          notifyListenersAboutEvent(data, transports, globalEmitter).catch(err => {
-            log.error(err)
-          })
-        }
-        globalEmitter.emit(`pattern.${headers.id}.success`, data.message, data.headers)
-        return data
-      })
-      .catch(Promise.CancellationError, err => { // stop execution chain if `break` event raised
-        const { message, headers } = err
-        return { message, headers }
-      })
-      .catch(err => {
-        return {
-          message: errorHandler(err, headers),
-          headers
-        }
-      })
+      return Promise.reduce(
+        executionChain,
+        (input, chainItem) => {
+          const [handlerAsync] = chainItem
+          if (headers.break) {
+            // should break execution and immediately return result
+            const error = new Promise.CancellationError('$break found')
+            error.message = input
+            error.headers = headers
+            throw error
+          }
+          return handlerAsync(input, headers)
+        },
+        pattern
+      )
+        .then(message => {
+          return { message, headers }
+        })
+        .then(async data => {
+          if (data.headers.notify) {
+            // notify listeners in async mode without block
+            notifyListenersAboutEvent(data, transports, globalEmitter).catch(err => {
+              log.error(err)
+            })
+          }
+          globalEmitter.emit(`pattern.${headers.id}.success`, data.message, data.headers)
+          return data
+        })
+        .catch(Promise.CancellationError, err => {
+          // stop execution chain if `break` event raised
+          const { message, headers } = err
+          return { message, headers }
+        })
+        .catch(err => {
+          return {
+            message: errorHandler(err, headers),
+            headers
+          }
+        })
     }
   }
 }

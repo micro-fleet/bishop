@@ -1,9 +1,11 @@
+const jaeger = require('jaeger-client')
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
 const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
 const utils = require('./utils')
 const LRU = require('lru-cache')
+const { version } = require('./package')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -20,7 +22,27 @@ const defaultConfig = {
   // in case of .follow same message can be delivered over different transports
   ignoreSameMessage: false,
   // default logger instance
-  logger: console
+  logger: console,
+  // opentracing settings
+  // https://www.npmjs.com/package/jaeger-client
+  opentracing: {
+    config: {
+      serviceName: 'bishop',
+      reporter: {
+        agentHost: 'localhost',
+        agentPort: 6832,
+        flushIntervalMs: 10000
+      },
+      sampler: {
+        // const, probabilistic, ratelimiting, lowerbound, remote
+        type: 'const',
+        param: 0
+      }
+    },
+    options: {
+      tags: {}
+    }
+  }
 }
 
 const uniqueIds = LRU({
@@ -29,8 +51,7 @@ const uniqueIds = LRU({
 
 class Bishop {
   constructor(userConfig) {
-
-    const config = this.config = Object.assign({}, defaultConfig, userConfig)
+    const config = (this.config = Object.assign({}, defaultConfig, userConfig))
     this.log = config.logger
 
     // listen incoming events and handle corresponding patterns
@@ -42,10 +63,13 @@ class Bishop {
       verboseMemoryLeak: false
     })
 
-    this.userErrorHandler = config.onError || function errorHandler(err) {
-      throw err
-    }
-    this.emitError = (error, headers = {}) => { // default error handler
+    this.userErrorHandler =
+      config.onError ||
+      function errorHandler(err) {
+        throw err
+      }
+    this.emitError = (error, headers = {}) => {
+      // default error handler
       this.eventEmitter.emit(`pattern.${headers.id || 'unknown'}.error`, error, headers)
       return this.userErrorHandler(error, headers)
     }
@@ -60,6 +84,15 @@ class Bishop {
 
     this.transports = {} // transportName: { options, follow, notify, request }
     this.followableTransportsEnum = []
+
+    const traceOptions = options.opentracing || {}
+    traceOptions.tags = {
+      ...traceOptions.tags,
+      'bishop.version': version,
+      'nodejs.version': process.versions.node
+    }
+
+    this.tracer = jaeger.initTracer(traceOptions)
   }
 
   // register payload for specified pattern
@@ -71,22 +104,24 @@ class Bishop {
       }
       throw new Error('.add: looks like you trying to add an empty pattern')
     }
-    const [ pattern, options ] = utils.split(message)
+    const [pattern, options] = utils.split(message)
     if (!payload) {
       throw new Error('.add: please pass pattern handler as last parameter')
     }
     if (this.config.forbidSameRouteNames) {
       utils.throwIfPatternExists(this.globalPatternMatcher, pattern)
     }
-    utils.registerInMatcher(this.globalPatternMatcher, [ pattern, options ], payload) // add payload to global pattern matcher
-    if (ld.isFunction(payload)) { // also register payload as local function (opposite to remote network calls)
-      utils.registerInMatcher(this.localPatternMatcher, [ pattern, options ], payload)
+    utils.registerInMatcher(this.globalPatternMatcher, [pattern, options], payload) // add payload to global pattern matcher
+    if (ld.isFunction(payload)) {
+      // also register payload as local function (opposite to remote network calls)
+      utils.registerInMatcher(this.localPatternMatcher, [pattern, options], payload)
     }
   }
 
   // listen for pattern and execute payload on success
   async follow(message, listener) {
-    const [ pattern, headers ] = utils.split(message)
+    const [pattern, headers] = utils.split(message)
+    const span = this.createTraceSpan(this.tracer, 'bishop', 'plain', headers.trace)
     const ignoreSameMessage = this.config.ignoreSameMessage
     const eventEmitter = this.eventEmitter
 
@@ -105,7 +140,6 @@ class Bishop {
       } catch (err) {
         eventEmitter.emit(`notify.${id}.error`, err, message, headers)
       }
-
     }
     // subscribe to local event
     // https://github.com/asyncly/EventEmitter2#multi-level-wildcards
@@ -118,7 +152,7 @@ class Bishop {
     })
   }
 
-/**
+  /**
 WARN: register('before|after', pattern, handler) order not guaranteed
 .register('before', handler)
 .register('before', pattern, handler)
@@ -128,13 +162,19 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 .register('transport', name, instance, [options])
  */
   register(...params) {
-    const [ type, arg1, arg2, arg3 ] = params
+    const [type, arg1, arg2, arg3] = params
 
     switch (type) {
       case 'remote': // backward
-        utils.registerRemoteTransport(this.transports, arg1,
-          utils.ensureIsFuction(arg2, '.register remote: please pass valid Promise as second paramerer'),
-        arg3)
+        utils.registerRemoteTransport(
+          this.transports,
+          arg1,
+          utils.ensureIsFuction(
+            arg2,
+            '.register remote: please pass valid Promise as second paramerer'
+          ),
+          arg3
+        )
         this.followableTransportsEnum = Object.keys(this.transports).filter(name => {
           return this.transports[name].follow // `follow` method exists in transport
         })
@@ -146,11 +186,13 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         })
         return
       case 'before':
-        return arg2 ? utils.registerInMatcher(this.beforePatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
-          utils.registerGlobal(this.beforeGlobalHandlers, utils.ensureIsFuction(arg1))
+        return arg2
+          ? utils.registerInMatcher(this.beforePatternMatcher, arg1, utils.ensureIsFuction(arg2))
+          : utils.registerGlobal(this.beforeGlobalHandlers, utils.ensureIsFuction(arg1))
       case 'after':
-        return arg2 ? utils.registerInMatcher(this.afterPatternMatcher, arg1, utils.ensureIsFuction(arg2)) :
-          utils.registerGlobal(this.afterGlobalHandlers, utils.ensureIsFuction(arg1))
+        return arg2
+          ? utils.registerInMatcher(this.afterPatternMatcher, arg1, utils.ensureIsFuction(arg2))
+          : utils.registerGlobal(this.afterGlobalHandlers, utils.ensureIsFuction(arg1))
       default:
         throw new Error('.register(before|after|transport, ...)')
     }
@@ -158,7 +200,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
   // remove pattern from pattern matcher instance
   remove(message) {
-    const [ pattern ] = utils.split(message)
+    const [pattern] = utils.split(message)
     this.globalPatternMatcher.remove(pattern)
     this.localPatternMatcher.remove(pattern)
   }
@@ -180,11 +222,12 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   }
 
   async actRaw(message, ...payloads) {
-
     const actStarted = utils.calcDelay(null, false)
-    const [ pattern, actHeaders, sourceMessage ] = utils.split(message, ...payloads)
+    const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
 
-    const normalizeHeadersParams = { actHeaders, sourceMessage,
+    const normalizeHeadersParams = {
+      actHeaders,
+      sourceMessage,
       notifyableTransportsEnum: this.notifyableTransportsEnum
     }
 
@@ -205,14 +248,16 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
 
     const matchedPattern = result.pattern
-    const [ payload, addHeaders ] = result.payload
+    const [payload, addHeaders] = result.payload
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
     normalizeHeadersParams.addHeaders = addHeaders
     normalizeHeadersParams.matchedPattern = matchedPattern
     const headers = utils.normalizeHeaders(normalizeHeadersParams)
 
-    const slowTimeoutWarning = headers.slow ? parseInt(headers.slow, 10) : this.config.slowPatternTimeout
+    const slowTimeoutWarning = headers.slow
+      ? parseInt(headers.slow, 10)
+      : this.config.slowPatternTimeout
     const timeout = headers.timeout ? parseInt(headers.timeout, 10) : this.config.timeout
 
     // 2do: think about execution chain caching
@@ -225,7 +270,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       ...this.afterGlobalHandlers
     ]
 
-    if (slowTimeoutWarning) { // emit warning about slow timeout in the end of execution chain
+    if (slowTimeoutWarning) {
+      // emit warning about slow timeout in the end of execution chain
       utils.registerGlobal(
         executionChain,
         utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log)
@@ -233,7 +279,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
 
     if (executionChain.length > this.config.maxExecutionChain) {
-      this.log.warn(`execution chain for ${utils.beautify(sourceMessage)} is too big (${executionChain.length})`)
+      this.log.warn(
+        `execution chain for ${utils.beautify(sourceMessage)} is too big (${executionChain.length})`
+      )
     }
 
     const chainRunnerAsync = utils.createChainRunnerPromise({
@@ -246,12 +294,14 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       log: this.log
     })
 
-    if (headers.nowait) { // sometimes client dont want to wait, so we simply launch chain in async mode
+    if (headers.nowait) {
+      // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunnerAsync()
       return Promise.resolve({ message: undefined, headers })
     }
 
-    if (!timeout) { // no need to handle timeout
+    if (!timeout) {
+      // no need to handle timeout
       return chainRunnerAsync()
     }
 
@@ -263,7 +313,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
           headers
         )
       })
-    }
+  }
 }
 
 module.exports = Bishop

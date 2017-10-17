@@ -1,9 +1,13 @@
 # http://eslint.org/docs/rules/
-extends: eslint:recommended
+extends:
+  - eslint:recommended
+  - prettier
 plugins:
-  - output-todo-comments
+  - prettier
 parserOptions:
   ecmaVersion: 8
+  ecmaFeatures:
+    experimentalObjectRestSpread: true
 env:
   node: true
   mocha: true
@@ -17,10 +21,5 @@ rules:
   strict: off
   no-use-before-define: off
   eol-last: off
-  quotes: [ error, single ]
-  output-todo-comments/output-todo-comments:
-  - warn
-  - terms:
-    - todo
-    - fixme
-    - 2do
+  quotes: [ warn, single, avoidEscape: true ]
+  prettier/prettier: warn
