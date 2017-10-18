@@ -340,7 +340,6 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     }
 
     if (!timeout) {
-      span.finish()
       // no need to handle timeout
       return chainRunnerAsync().tap(() => {
         span.finish()

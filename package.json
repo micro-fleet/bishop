@@ -1,6 +1,6 @@
 {
   "name": "bishop",
-  "version": "5.0.14",
+  "version": "5.1.0",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
@@ -26,7 +26,8 @@
     "eslint-plugin-output-todo-comments": "0.0.7",
     "eslint-plugin-prettier": "^2.3.1",
     "nyc": "^11.2.1",
-    "prettier": "^1.7.4"
+    "prettier": "^1.7.4",
+    "benchmark": "^2.1.4"
   },
   "dependencies": {
     "ajv": "^5.2.3",
