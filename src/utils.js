@@ -60,7 +60,7 @@ function createTraceSpan(tracer, name, parentFormat, parentData = null) {
 }
 
 function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
-  const span = createTraceSpan(tracer, `request:${peerService || 'local'}`, 'parent', parentSpan)
+  const span = createTraceSpan(tracer, `handler:${peerService || 'local'}`, 'parent', parentSpan)
   return (...args) => {
     return Promise.resolve(payload(...args))
       .catch(err => {

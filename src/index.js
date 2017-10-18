@@ -249,7 +249,8 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = utils.calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
-    const span = utils.createTraceSpan(this.tracer, 'act', 'headers', actHeaders.trace)
+    const spanName = utils.beautify(pattern)
+    const span = utils.createTraceSpan(this.tracer, spanName, 'headers', actHeaders.trace)
     span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
     span.setTag(bishopTracingTags.PATTERNACT, pattern)
 
