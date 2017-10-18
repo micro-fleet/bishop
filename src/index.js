@@ -145,7 +145,8 @@ class Bishop {
         // do not emit same message
         return
       }
-      const span = utils.createTraceSpan(tracer, 'follow', 'headers', headers.trace)
+      const spanName = `follow:${utils.beautify(pattern)}`
+      const span = utils.createTraceSpan(tracer, spanName, 'headers', headers.trace)
       if (!headers.trace) {
         // add non-existing tags
         span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)
