@@ -1,6 +1,6 @@
 const Bishop = require('./')
 const bishop = new Bishop({
-  // notify: true
+  version: '1'
 })
 
 bishop.add('role:test, cmd:something', () => {
@@ -9,5 +9,4 @@ bishop.add('role:test, cmd:something', () => {
 // bishop.remove('role:test, cmd:something')
 // bishop.follow('role:test, cmd:something, other:value', console.log)
 //
-// const result = bishop.act('role:test, cmd:something, other:value, $notify:true')
-// console.log(result)
+bishop.act('role:test, cmd:something, other:value, $notify:true, $timeout:1000').then(console.log)

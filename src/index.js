@@ -1,26 +1,29 @@
 /**
-2do: request versioning support
-2do: send name & version in actions
+2do: interact over events (to support versioning)
+2do: versioning support // $match
+
+2do: send name/version in headers
+2do: method to proxy headers
+2do: generate unique request id if not exists
 2do: cache .act requests
 2do: tests
 2do: readme
+
+2do: think about optional eventemitters: amqp?
 */
 const bloomrun = require('bloomrun')
+const errors = require('common-errors')
 const ld = require('lodash')
 const { EventEmitter2 } = require('eventemitter2')
 const LRU = require('lru-cache')
+const Promise = require('bluebird')
 
-const { validateOrThrow, schemas } = require('./validator')
+const { validateOrThrow } = require('./validator')
 const { beautify, normalizePattern, routingKeyFromPattern, getOption, ensureIsFuction } = require('./utils')
 
 const uniqueIds = LRU({
   maxAge: 60 * 1000
 })
-
-const proxiedOptions = ld.reduce(schemas.options.properties, (result, value, key) => {
-  if (value.flaggable) { result.push(key) }
-  return result
-}, [])
 
 class Bishop extends EventEmitter2 {
 
@@ -31,6 +34,7 @@ class Bishop extends EventEmitter2 {
 
     this.patternMatcher = bloomrun({ indexing: options.matchOrder })
     this.on('warning', console.log)
+    this.on('slow', console.log)
   }
 
 /**
@@ -47,7 +51,6 @@ class Bishop extends EventEmitter2 {
         throw new Error(`same pattern already exists: ${beautify(pattern)}`)
       }
     }
-
     this.patternMatcher.add(pattern, { payload, options })
   }
 
@@ -78,15 +81,31 @@ class Bishop extends EventEmitter2 {
    }
 
    const { payload, options: addOptions } = found
-   const result = await payload(pattern, actOptions)
 
-   const flags = getOption(proxiedOptions, addOptions, actOptions, this.options)
+   const flags = getOption(addOptions, actOptions, this.options)
+   const start = flags.slow && new Date().getTime()
 
-   if (flags.notify) {
-     const eventName = routingKeyFromPattern(pattern).join('.')
-     this.emit(eventName, result, pattern, actOptions)
+   const wrapAction = (...args) => { // https://github.com/petkaantonov/bluebird/issues/1200
+     if (flags.timeout) {
+       return Promise.resolve(payload(...args)).timeout(flags.timeout)
+     }
+     return Promise.resolve(payload(...args))
    }
-   return result
+
+   return wrapAction(pattern, actOptions).catch(Promise.TimeoutError, err => {
+     throw new errors.TimeoutError(`${beautify(pattern)} - ${err.message}`)
+   }).tap(result => {
+     if (start) {
+       const executionTime = new Date().getTime() - start
+       if (executionTime > flags.slow) {
+         this.emit('slow', pattern)
+       }
+     }
+     if (flags.notify) {
+       const eventName = routingKeyFromPattern(pattern).join('.')
+       this.emit(eventName, result, pattern, actOptions)
+     }
+   })
  }
 
 /**

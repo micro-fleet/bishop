@@ -2,6 +2,8 @@ const ld = require('lodash')
 const shortid = require('shortid')
 const DEFAULT_PATTERN_VALUE = '/.*/'
 
+const { validateOrThrow } = require('./validator')
+
 module.exports = { beautify, normalizePattern, routingKeyFromPattern, ensureIsFuction, getOption }
 
 /**
@@ -97,8 +99,8 @@ function normalizePattern(...args) {
 /**
  * resolves valid options from specified configs
  */
-function getOption(name, ...spreadedOptions) {
-  const names = ld.isArray(name) ? name : [ name ]
+function getOption(...spreadedOptions) {
   const options = ld.defaults({}, ...spreadedOptions)
-  return ld.pick(options, names)
+  validateOrThrow(options, 'flags')
+  return options
 }
