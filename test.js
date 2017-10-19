@@ -1,12 +1,18 @@
-const Bishop = require('./')
-const bishop = new Bishop({
-  version: '1'
-})
+const Bishop = require('./src/test')
+const bishop = new Bishop()
 
-bishop.add('role:test, cmd:something', () => {
-  return 'hello'
-})
-// bishop.remove('role:test, cmd:something')
-// bishop.follow('role:test, cmd:something, other:value', console.log)
-//
-bishop.act('role:test, cmd:something, other:value, $notify:true, $timeout:1000').then(console.log)
+// plugins:
+// -
+;(async () => {
+
+  bishop.listen('some: pattern', ctx => {
+    //
+  })
+
+  bishop.add('some: pattern', ctx => {
+    return 'some answer'
+  })
+
+  const result = await bishop.message('some: pattern').publish()
+  console.log(result)
+})()
