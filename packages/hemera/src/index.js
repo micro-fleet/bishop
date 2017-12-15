@@ -4,19 +4,12 @@ const ld = require('lodash')
 const compose = require('koa-compose')
 const Promise = require('bluebird')
 
+const validateOptions = require('./options')
 const { beautify, normalizePattern, ensureIsFuction } = require('./utils')
 
-/**
-forbidSameRouteNames
-matchOrder
-actTimeout
-2do: default state
-*/
-
 class Bishop {
-  constructor(_options) {
-    this.options = _options || {}
-    // 2do: validate default options
+  constructor(options) {
+    this.options = validateOptions(options)
 
     this.patternMatcher = bloomrun({ indexing: this.options.matchOrder })
     this.middlewares = []
@@ -36,7 +29,7 @@ class Bishop {
     ensureIsFuction(payload, 'pass the function in the last argument')
     const { pattern, meta } = normalizePattern(...args)
 
-    if (this.options.forbidSameRouteNames) {
+    if (this.options.forbidSameRoutes) {
       const foundPattern = this.patternMatcher.lookup(pattern, { patterns: true })
       if (ld.isEqual(foundPattern, pattern)) {
         throw new errors.AlreadyInUseError('same pattern already exists', pattern)
@@ -111,39 +104,11 @@ class Bishop {
 
   createContext({ request }) {
     const context = {}
-    context.state = {} // this state should be passed among all services
+    context.state = ld.cloneDeep(this.options.defaultState) // this state should be passed among all services
     context.request = request // .act parameters
     context.body = undefined // .add response
     return context
   }
-
-  /**
-   *
-   */
-  //  follow(...args) {
-  //    const listener = args.pop()
-  //    ensureIsFuction(listener, 'pass the function in the last argument')
-  //    const { pattern } = normalizePattern(...args)
-  //    const eventName = `**.${routingKeyFromPattern(pattern).join('.**.')}.**`
-
-  //    function handler(output, inputPattern, inputOptions) {
-  //      const { id } = inputOptions
-
-  //      if (uniqueIds.has(id)) {
-  //        return this.emit('warning', `message with #${id} was handled before`)// do not emit same message twice
-  //      }
-  //      uniqueIds.set(id, true)
-
-  //      try {
-  //        const result = listener(output, inputPattern, inputOptions)
-  //        this.emit(`notify.${id}.success`, result, inputPattern, inputOptions)
-  //      } catch (err) {
-  //        this.emit(`notify.${id}.fail`, err, inputPattern, inputOptions)
-  //      }
-
-  //    }
-  //    this.on(eventName, handler)
-  //  }
 }
 
 module.exports = Bishop
