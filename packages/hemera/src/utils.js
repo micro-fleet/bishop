@@ -1,9 +1,7 @@
 const tinysonic = require('tinysonic')
 const ld = require('lodash')
 
-const { validateOrThrow } = require('./validator')
-
-module.exports = { beautify, normalizePattern, routingKeyFromPattern, ensureIsFuction, getOption }
+module.exports = { beautify, normalizePattern, ensureIsFuction }
 
 /**
  * throws error if passed payload is not a function
@@ -13,20 +11,6 @@ function ensureIsFuction(func, message = 'function expected') {
     throw new Error(message)
   }
   return func
-}
-
-/**
- * converts object into array suitable for events with sorting by keys
- */
-// { qwe: 'aaa', asd: 'bbb'} => [ 'asd.bbb', 'qwe.aaa' ]
-function routingKeyFromPattern(pattern, replaceWild = '*') {
-  return Object.keys(pattern)
-    .sort()
-    .map(key => {
-      const keyType = typeof pattern[key]
-      const value = keyType === 'string' ? pattern[key] : replaceWild
-      return `${key}.${value}`
-    })
 }
 
 /**
@@ -68,13 +52,4 @@ function normalizePattern(...args) {
     }
   })
   return { pattern, meta, raw }
-}
-
-/**
- * resolves valid options from specified configs
- */
-function getOption(...spreadedOptions) {
-  const options = ld.defaults({}, ...spreadedOptions)
-  validateOrThrow(options, 'flags')
-  return options
 }

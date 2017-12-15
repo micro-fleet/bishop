@@ -1,4 +1,5 @@
 const { expect } = require('chai')
+const ld = require('lodash')
 
 const Bishop = require('..')
 
@@ -46,5 +47,13 @@ describe('local behaviour', () => {
     const ctx = await bishop.act(pattern)
     expect(ctx.body).to.equal('current state is pre-value')
     expect(ctx.state.value).to.equal('post-value')
+  })
+
+  it.skip('ensures hocks work', async () => {
+    const bishop = new Bishop()
+    bishop.hook('pre-add', async () => {
+      console.log('pre-add called')
+    })
+    bishop.add({ role: 'test', cmd: 'test-pre-add' }, ld.noop)
   })
 })

@@ -20,7 +20,13 @@ class Bishop {
 
     this.patternMatcher = bloomrun({ indexing: this.options.matchOrder })
     this.middlewares = []
+    this.hooks = {
+      'pre-add': [],
+      'post-add': []
+    }
   }
+
+  hook() {}
 
   /**
    *

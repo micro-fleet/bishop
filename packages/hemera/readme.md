@@ -1,6 +1,7 @@
 ### 2do
 [x] base methods
-[x] plugin system
+[x] middlewares
+[ ] plugin system
 [x] ability to pass context into nested acts (ex.: timeouts, opentracing ids)
 [ ] plugin: ability to pass Joi validator options (support: .optional, .default, types casting)
 [ ] plugin: .follow method
