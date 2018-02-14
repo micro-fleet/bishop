@@ -23,7 +23,7 @@ const defaultConfig = {
   ignoreSameMessage: false,
   // default logger instance
   logger: console,
-  tracer: {
+  trace: {
     name: 'bishop'
   }
 }
@@ -77,11 +77,7 @@ class Bishop {
     this.transports = {} // transportName: { options, follow, notify, request }
     this.followableTransportsEnum = []
 
-    const traceOptions = config.opentracing || {}
-    const tags = (traceOptions.tags = traceOptions.tags || {})
-    tags[opentracing.Tags.COMPONENT] = 'bishop'
-
-    this.tracer = ld.isPlainObject(config.tracer) ? initTracer(config.tracer) : config.tracer
+    this.tracer = ld.isPlainObject(config.trace) ? initTracer(config.trace) : config.trace
   }
 
   // register payload for specified pattern
