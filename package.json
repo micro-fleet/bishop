@@ -1,6 +1,6 @@
 {
   "name": "bishop",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
@@ -30,11 +30,11 @@
     "prettier": "^1.10.2"
   },
   "dependencies": {
+    "@fulldive/common": "^2.3.0",
     "ajv": "^6.1.1",
     "bloomrun": "4.1.0",
     "bluebird": "^3.5.1",
     "eventemitter2": "^5.0.1",
-    "jaeger-client": "^3.8.0",
     "lodash": "^4.17.5",
     "lru-cache": "^4.1.1",
     "opentracing": "^0.14.1"

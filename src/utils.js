@@ -1,8 +1,7 @@
 const ld = require('lodash')
 const Promise = require('bluebird')
 const Ajv = require('ajv')
-const jaeger = require('jaeger-client')
-const opentracing = require('opentracing')
+const { createTraceSpan, finishSpan, markError } = require('@fulldive/common/src/tracer')
 
 const ajv = new Ajv({
   coerceTypes: 'array',
@@ -38,42 +37,17 @@ const areHeadersValid = ajv.compile({
   }
 })
 
-function createTraceSpan(tracer, name, parentFormat, parentData = null) {
-  if (!parentData) {
-    return tracer.startSpan(name)
-  }
-  switch (parentFormat) {
-    case 'parent':
-      return tracer.startSpan(name, {
-        childOf: parentData.context()
-      })
-    case 'headers':
-      return tracer.startSpan(name, {
-        childOf: tracer.extract(opentracing.FORMAT_HTTP_HEADERS, parentData)
-      })
-    case 'plain':
-      jaeger.SpanContext.fromString(parentData)
-
-      return tracer.startSpan(name, { childOf: jaeger.SpanContext.fromString(parentData) })
-  }
-  throw new Error(`format ${parentFormat} not supported`)
-}
-
 function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
-  const span = createTraceSpan(tracer, `handler:${peerService || 'local'}`, 'parent', parentSpan)
+  const span = createTraceSpan(tracer, `add-from:${peerService || 'local'}`, parentSpan)
   return (...args) => {
     return Promise.resolve(payload(...args))
-      .catch(err => {
-        span.setTag(opentracing.Tags.ERROR, true)
-        span.log({
-          event: 'error',
-          message: err.message,
-          stack: err.stack
-        })
-        throw err
+      .then(result => {
+        finishSpan(span)
+        return result
       })
-      .finally(() => {
-        span.finish()
+      .catch(err => {
+        finishSpan(span, err)
+        throw err
       })
   }
 }
@@ -191,7 +165,6 @@ module.exports = {
   split,
   beautify,
   routingKeyFromPattern,
-  createTraceSpan,
 
   registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
     if (remoteTransportsStorage[name]) {
@@ -244,7 +217,7 @@ module.exports = {
     return [wrapFunctionWithTracer(request, tracer, parentSpan, payload), {}]
   },
 
-  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger, span) {
+  createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger) {
     const actStarted = userTime || calcDelay(null, false)
     return message => {
       const executionTime = calcDelay(actStarted, false)
@@ -252,10 +225,6 @@ module.exports = {
       if (executionTime > slowTimeoutWarning) {
         logger.warn(text)
       }
-      span.log({
-        event: 'info',
-        message: text
-      })
       return message
     }
   },
@@ -343,12 +312,7 @@ module.exports = {
           return { message, headers }
         })
         .catch(err => {
-          span.setTag(opentracing.Tags.ERROR, true)
-          span.log({
-            event: 'error',
-            message: err.message,
-            stack: err.stack
-          })
+          markError(span, err)
           return {
             message: errorHandler(err, headers),
             headers

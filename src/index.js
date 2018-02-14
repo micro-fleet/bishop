@@ -1,4 +1,3 @@
-const jaeger = require('jaeger-client')
 const opentracing = require('opentracing')
 const bloomrun = require('bloomrun')
 const ld = require('lodash')
@@ -6,7 +5,7 @@ const { EventEmitter2 } = require('eventemitter2')
 const Promise = require('bluebird')
 const utils = require('./utils')
 const LRU = require('lru-cache')
-const { version } = require('../package')
+const { createTraceSpan, finishSpan, initTracer } = require('@fulldive/common/src/tracer')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -24,25 +23,8 @@ const defaultConfig = {
   ignoreSameMessage: false,
   // default logger instance
   logger: console,
-  // opentracing settings
-  // https://www.npmjs.com/package/jaeger-client
-  opentracing: {
-    config: {
-      serviceName: 'bishop',
-      reporter: {
-        agentHost: 'localhost',
-        agentPort: 6832,
-        flushIntervalMs: 10000
-      },
-      sampler: {
-        // const, probabilistic, ratelimiting, lowerbound, remote
-        type: 'const',
-        param: 0
-      }
-    },
-    options: {
-      tags: {}
-    }
+  tracer: {
+    name: 'bishop'
   }
 }
 
@@ -79,13 +61,7 @@ class Bishop {
       // default error handler
       this.eventEmitter.emit(`pattern.${headers.id || 'unknown'}.error`, error, headers)
       if (span) {
-        span.setTag(opentracing.Tags.ERROR, true)
-        span.log({
-          event: 'error',
-          message: error.message,
-          stack: error.stack
-        })
-        span.finish()
+        finishSpan(span, error)
       }
       return this.userErrorHandler(error, headers)
     }
@@ -104,9 +80,8 @@ class Bishop {
     const traceOptions = config.opentracing || {}
     const tags = (traceOptions.tags = traceOptions.tags || {})
     tags[opentracing.Tags.COMPONENT] = 'bishop'
-    tags[bishopTracingTags.VERSION] = version
-    tags['nodejs.version'] = process.versions.node
-    this.tracer = jaeger.initTracer(traceOptions.config, traceOptions.options)
+
+    this.tracer = ld.isPlainObject(config.tracer) ? initTracer(config.tracer) : config.tracer
   }
 
   // register payload for specified pattern
@@ -145,27 +120,18 @@ class Bishop {
         // do not emit same message
         return
       }
-      const spanName = `follow:${utils.beautify(pattern)}`
-      const span = utils.createTraceSpan(tracer, spanName, 'headers', headers.trace)
-      if (!headers.trace) {
-        // add non-existing tags
-        span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)
-      }
+      const span = createTraceSpan(tracer, 'follow', headers.trace)
+      span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)
       uniqueIds.set(id, true)
 
       try {
         const result = await listener(message, headers)
+        finishSpan(span)
         eventEmitter.emit(`notify.${id}.success`, result, message, headers)
       } catch (err) {
-        span.setTag(opentracing.Tags.ERROR, true)
-        span.log({
-          event: 'error',
-          message: err.message,
-          stack: err.stack
-        })
+        finishSpan(span, err)
         eventEmitter.emit(`notify.${id}.error`, err, message, headers)
       }
-      span.finish()
     }
     // subscribe to local event
     // https://github.com/asyncly/EventEmitter2#multi-level-wildcards
@@ -258,8 +224,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = utils.calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
-    const spanName = utils.beautify(pattern)
-    const span = utils.createTraceSpan(this.tracer, spanName, 'headers', actHeaders.trace)
+    const span = createTraceSpan(this.tracer, `act:${utils.beautify(pattern)}`, actHeaders.trace)
     span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
     span.setTag(bishopTracingTags.PATTERNACT, pattern)
 
@@ -315,20 +280,16 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       // emit warning about slow timeout in the end of execution chain
       utils.registerGlobal(
         executionChain,
-        utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log, span)
+        utils.createSlowExecutionWarner(slowTimeoutWarning, actStarted, headers, this.log)
       )
     }
 
     if (executionChain.length > this.config.maxExecutionChain) {
-      const text = `execution chain for ${utils.beautify(
-        sourceMessage
-      )} is too big (${executionChain.length})`
+      const text = `execution chain for ${utils.beautify(sourceMessage)} is too big (${
+        executionChain.length
+      })`
 
       this.log.warn(text)
-      span.log({
-        event: 'info',
-        message: text
-      })
     }
 
     const chainRunnerAsync = utils.createChainRunnerPromise({
@@ -345,14 +306,14 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     if (headers.nowait) {
       // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunnerAsync()
-      span.finish()
+      finishSpan(span)
       return Promise.resolve({ message: undefined, headers })
     }
 
     if (!timeout) {
       // no need to handle timeout
       return chainRunnerAsync().tap(() => {
-        span.finish()
+        finishSpan(span)
       })
     }
 
@@ -366,7 +327,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         )
       })
       .tap(() => {
-        span.finish()
+        finishSpan(span)
       })
   }
 }
