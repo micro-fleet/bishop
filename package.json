@@ -45,6 +45,9 @@
       "**/*js"
     ]
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "nyc": {
     "include": [
       "src/**.js"
