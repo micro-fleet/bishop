@@ -112,9 +112,9 @@ class Bishop {
   // register payload for specified pattern
   add(message, payload) {
     if (!message) {
-      console.log('Empty pattern detected...')
+      this.log.warn('Empty pattern detected...')
       if (payload) {
-        console.log(payload.toString())
+        this.log.warn(payload.toString())
       }
       throw new Error('.add: looks like you trying to add an empty pattern')
     }
@@ -176,6 +176,14 @@ class Bishop {
     return Promise.map(this.followableTransportsEnum, transportName => {
       return this.transports[transportName].follow(pattern, handler, headers)
     })
+  }
+
+  embed(key, instance) {
+    if (typeof this[key] !== 'undefined') {
+      throw new Error(`bishop.${key} already embedded somewhere else`)
+    }
+    this[key] = instance
+    return instance
   }
 
   /**
