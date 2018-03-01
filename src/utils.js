@@ -38,16 +38,17 @@ const areHeadersValid = ajv.compile({
 })
 
 function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
-  const span = createTraceSpan(tracer, `add-from:${peerService || 'local'}`, parentSpan)
+  const span = createTraceSpan(tracer, 'act:handler', parentSpan)
+  span.setTag('bishop.act.source', peerService || 'local')
   return (...args) => {
     return Promise.resolve(payload(...args))
-      .then(result => {
-        finishSpan(span)
-        return result
-      })
       .catch(err => {
         finishSpan(span, err)
         throw err
+      })
+      .then(result => {
+        finishSpan(span)
+        return result
       })
   }
 }

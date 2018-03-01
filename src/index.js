@@ -28,12 +28,6 @@ const defaultConfig = {
   }
 }
 
-const bishopTracingTags = {
-  VERSION: 'bishop.version',
-  PATTERNMATCH: 'bishop.pattern.match',
-  PATTERNACT: 'bishop.pattern.act'
-}
-
 const uniqueIds = LRU({
   maxAge: 60 * 1000
 })
@@ -117,7 +111,8 @@ class Bishop {
         return
       }
       const span = createTraceSpan(tracer, 'follow', headers.trace)
-      span.setTag(bishopTracingTags.PATTERNMATCH, headers.pattern)
+      span.setTag('bishop.follow.pattern', headers.pattern)
+      span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
       uniqueIds.set(id, true)
 
       try {
@@ -220,9 +215,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = utils.calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
-    const span = createTraceSpan(this.tracer, `act:${utils.beautify(pattern)}`, actHeaders.trace)
+    const span = createTraceSpan(this.tracer, 'act', actHeaders.trace)
     span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
-    span.setTag(bishopTracingTags.PATTERNACT, pattern)
+    span.setTag('bishop.act.pattern', pattern)
 
     const normalizeHeadersParams = {
       actHeaders,
@@ -250,7 +245,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     const matchedPattern = result.pattern
     const [payload, addHeaders] = result.payload
-    span.setTag(bishopTracingTags.PATTERNMATCH, matchedPattern)
+    span.setTag('bishop.act.match', matchedPattern)
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
     normalizeHeadersParams.addHeaders = addHeaders
