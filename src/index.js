@@ -6,6 +6,7 @@ const Promise = require('bluebird')
 const utils = require('./utils')
 const LRU = require('lru-cache')
 const { createTraceSpan, finishSpan, initTracer } = require('@fulldive/common/src/tracer')
+const createDefaultLogger = require('@fulldive/common/src/logger')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -22,7 +23,7 @@ const defaultConfig = {
   // in case of .follow same message can be delivered over different transports
   ignoreSameMessage: false,
   // default logger instance
-  logger: console,
+  logger: { name: 'bishop' },
   trace: {
     name: 'bishop'
   }
@@ -35,7 +36,8 @@ const uniqueIds = LRU({
 class Bishop {
   constructor(userConfig) {
     const config = (this.config = ld.defaultsDeep({}, userConfig, defaultConfig))
-    this.log = config.logger
+    this.log =
+      config.logger && config.logger.info ? config.logger : createDefaultLogger(config.logger)
 
     // listen incoming events and handle corresponding patterns
     this.eventEmitter = new EventEmitter2({
