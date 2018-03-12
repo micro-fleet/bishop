@@ -84,25 +84,6 @@ test('check $nowait', async t => {
   t.is(await bishop.act('role:test, act:nowait'), 'success')
 })
 
-test('check $slow', async t => {
-  let loggedMessage
-  const bishop = new Bishop({
-    logger: {
-      warn: message => {
-        loggedMessage = message
-      }
-    }
-  })
-  bishop.add('role:test, act:slow', async () => {
-    await Promise.delay(15)
-    return 'slow success'
-  })
-  t.is(await bishop.act('role:test, act:slow'), 'slow success')
-  t.is(loggedMessage, undefined)
-  t.is(await bishop.act('role:test, act:slow, $slow: 10'), 'slow success')
-  t.regex(loggedMessage, /pattern executed in/)
-})
-
 test('.register', async t => {
   const bishop = new Bishop()
   bishop.register('before', 'role:test', message => {
