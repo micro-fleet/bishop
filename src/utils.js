@@ -115,8 +115,8 @@ function split(...args) {
   return [message, meta, raw]
 }
 
-function beautify(obj) {
-  return ld
+function beautify(obj, maxLength = 100) {
+  const stringifyPattern = ld
     .keys(obj)
     .map(key => {
       const value = obj[key]
@@ -126,6 +126,7 @@ function beautify(obj) {
       return value ? `${key}:${value.toString()}` : key
     })
     .join(', ')
+  return stringifyPattern.substring(0, maxLength)
 }
 
 // convert object { qwe: 'aaa', asd: 'bbb'} to string 'qwe.aaa.asd.bbb' with sorted keys

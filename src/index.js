@@ -112,8 +112,8 @@ class Bishop {
         // do not emit same message
         return
       }
-      const span = createTraceSpan(tracer, 'follow', headers.trace)
-      span.setTag('bishop.follow.pattern', headers.pattern)
+      const span = createTraceSpan(tracer, 'bishop.follow', headers.trace)
+      span.setTag('bishop.follow.pattern', utils.beautify(headers.pattern))
       span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
       uniqueIds.set(id, true)
 
@@ -217,9 +217,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = utils.calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = utils.split(message, ...payloads)
-    const span = createTraceSpan(this.tracer, 'act', actHeaders.trace)
+    const span = createTraceSpan(this.tracer, 'bishop.act', actHeaders.trace)
     span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
-    span.setTag('bishop.act.pattern', pattern)
+    span.setTag('bishop.act.pattern', utils.beautify(pattern))
 
     const normalizeHeadersParams = {
       actHeaders,
@@ -247,7 +247,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     const matchedPattern = result.pattern
     const [payload, addHeaders] = result.payload
-    span.setTag('bishop.act.match', matchedPattern)
+    span.setTag('bishop.act.match', utils.beautify(matchedPattern))
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
     normalizeHeadersParams.addHeaders = addHeaders
