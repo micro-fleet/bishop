@@ -1,7 +1,7 @@
 const ld = require('lodash')
 const Promise = require('bluebird')
 const Ajv = require('ajv')
-const { createTraceSpan, finishSpan, markError } = require('@fulldive/common/src/tracer')
+const { markError } = require('@fulldive/common/src/tracer')
 
 const ajv = new Ajv({
   coerceTypes: 'array',
@@ -36,22 +36,6 @@ const areHeadersValid = ajv.compile({
     }
   }
 })
-
-function wrapFunctionWithTracer(payload, tracer, parentSpan, peerService) {
-  const span = createTraceSpan(tracer, 'act:handler', parentSpan)
-  span.setTag('bishop.act.source', peerService || 'local')
-  return (...args) => {
-    return Promise.resolve(payload(...args))
-      .catch(err => {
-        finishSpan(span, err)
-        throw err
-      })
-      .then(result => {
-        finishSpan(span)
-        return result
-      })
-  }
-}
 
 /**
  * Send bishop pattern execution event to all listeners
@@ -201,10 +185,10 @@ module.exports = {
     }
   },
 
-  createPayloadWrapper(payload, headers, remoteTransportsStorage, tracer, parentSpan) {
+  createPayloadWrapper(payload, headers, remoteTransportsStorage) {
     if (headers.local || ld.isFunction(payload)) {
       // this method found in local patterns
-      return [wrapFunctionWithTracer(payload, tracer, parentSpan), {}]
+      return [payload, {}]
     }
     // thereis a string in payload - redirect to external transport
     const { request, options } = remoteTransportsStorage[payload] || {}
@@ -215,7 +199,7 @@ module.exports = {
       // redefine pattern timeout if transport-specific is set
       headers.timeout = options.timeout
     }
-    return [wrapFunctionWithTracer(request, tracer, parentSpan, payload), {}]
+    return [request, {}]
   },
 
   createSlowExecutionWarner(slowTimeoutWarning, userTime, headers, logger) {
