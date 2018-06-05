@@ -26,11 +26,11 @@
     "eslint-config-prettier": "^2.9.0",
     "eslint-plugin-output-todo-comments": "0.0.7",
     "eslint-plugin-prettier": "^2.6.0",
-    "nyc": "^11.8.0",
-    "prettier": "^1.13.0"
+    "nyc": "^12.0.2",
+    "prettier": "^1.13.4"
   },
   "dependencies": {
-    "@fulldive/common": "^3.0.12",
+    "@fulldive/common": "^3.0.13",
     "ajv": "^6.5.0",
     "bloomrun": "4.1.0",
     "bluebird": "^3.5.1",

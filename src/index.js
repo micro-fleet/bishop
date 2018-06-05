@@ -206,7 +206,6 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
   // find first matching service by pattern, and execute it
   //  $timeout - redefine global request timeout for network requests
-  //  $slow - emit warning if pattern executing more than $slow ms
   //  $local - search only in local patterns, skip remote transports
   //  $nowait - resolve immediately (in case of local patterns), or then message is sent (in case of transports)
   //  $notify - emit event to global listeners
@@ -264,7 +263,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     const executionChain = [
       ...this.beforeGlobalHandlers,
       ...this.beforePatternMatcher.list(pattern).reverse(),
-      utils.createPayloadWrapper(payload, headers, this.transports, this.tracer, span),
+      utils.createPayloadWrapper(payload, headers, this.transports),
       ...this.afterPatternMatcher.list(pattern),
       ...this.afterGlobalHandlers
     ]
