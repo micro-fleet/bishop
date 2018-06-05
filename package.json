@@ -1,6 +1,6 @@
 {
   "name": "@fulldive/bishop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A Microservices Framework for Node.js",
   "main": "index.js",
   "scripts": {
