@@ -7,6 +7,7 @@ const utils = require('./utils')
 const LRU = require('lru-cache')
 const { createTraceSpan, finishSpan, initTracer } = require('@fulldive/common/src/tracer')
 const createDefaultLogger = require('@fulldive/common/src/logger')
+const errors = require('common-errors')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -15,7 +16,7 @@ const defaultConfig = {
   //  if set to depth, it will try to match entries with the most properties first
   matchOrder: 'depth', // insertion, depth
   // default timeout for pattern execution in ms
-  timeout: 500,
+  timeout: 1000,
   // emit warning on slow execution in ms
   slowPatternTimeout: null,
   // emit warning in big execution chain
@@ -83,11 +84,11 @@ class Bishop {
       if (payload) {
         this.log.warn(payload.toString())
       }
-      throw new Error('.add: looks like you trying to add an empty pattern')
+      throw errors.ArgumentError('.add: looks like you trying to add an empty pattern')
     }
     const [pattern, options] = utils.split(message)
     if (!payload) {
-      throw new Error('.add: please pass pattern handler as last parameter')
+      throw errors.ArgumentError('.add: please pass pattern handler as last parameter')
     }
     if (this.config.forbidSameRouteNames) {
       utils.throwIfPatternExists(this.globalPatternMatcher, pattern)
@@ -139,7 +140,7 @@ class Bishop {
 
   embed(key, instance) {
     if (typeof this[key] !== 'undefined') {
-      throw new Error(`bishop.${key} already embedded somewhere else`)
+      throw errors.ArgumentError(`bishop.${key} already embedded somewhere else`)
     }
     this[key] = instance
     return instance
@@ -187,7 +188,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
           ? utils.registerInMatcher(this.afterPatternMatcher, arg1, utils.ensureIsFuction(arg2))
           : utils.registerGlobal(this.afterGlobalHandlers, utils.ensureIsFuction(arg1))
       default:
-        throw new Error('.register(before|after|transport, ...)')
+        throw errors.ArgumentError('.register(before|after|transport, ...)')
     }
   }
 
@@ -228,7 +229,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     if (ld.isEmpty(message)) {
       return this.emitError(
-        new Error('.act: please specify at least one search pattern'),
+        errors.ArgumentError('.act: please specify at least one search pattern'),
         utils.normalizeHeaders(normalizeHeadersParams),
         span
       )
@@ -238,7 +239,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
       return this.emitError(
-        new Error(`pattern not found: ${utils.beautify(sourceMessage)}`),
+        errors.NotFoundError(utils.beautify(sourceMessage)),
         utils.normalizeHeaders(normalizeHeadersParams),
         span
       )
@@ -313,7 +314,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
       .timeout(timeout)
       .catch(Promise.TimeoutError, () => {
         return this.emitError(
-          new Error(`pattern timeout after ${timeout}ms: ${utils.beautify(headers.source)}`),
+          errors.TimeoutError(
+            `pattern timeout after ${timeout}ms: ${utils.beautify(headers.source)}`
+          ),
           headers,
           span
         )

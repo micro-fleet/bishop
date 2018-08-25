@@ -4,7 +4,7 @@ const Promise = require('bluebird')
 
 test('create bishop instance', async t => {
   const bishop = new Bishop()
-  t.is(bishop.config.timeout, 500)
+  t.is(bishop.config.timeout, 1000)
   t.is(bishop.config.forbidSameRouteNames, false)
   t.is(bishop.config.matchOrder, 'depth')
 })
@@ -41,13 +41,15 @@ test('remove pattern operation', async t => {
   bishop.add('role: test, remove: true', () => 'remove')
   t.is(await bishop.act('role: test, remove: true'), 'remove')
   bishop.remove('role: test, remove: true')
-  await t.throws(bishop.act('role: test, remove: true'), /not found/)
+  const error = await t.throws(bishop.act('role: test, remove: true'))
+  t.is(error.name, 'NotFoundError')
 })
 
 test('invalid parameters', async t => {
   const bishop = new Bishop()
   await t.throws(bishop.act(), /at least one search pattern/)
-  await t.throws(bishop.act('role: test, act: nosuch'), /pattern not found/)
+  const error = await t.throws(bishop.act('role: test, act: nosuch'))
+  t.is(error.name, 'NotFoundError')
   await t.throws(() => {
     bishop.add('role: test, act: not-registered')
   }, /pass pattern handler/)

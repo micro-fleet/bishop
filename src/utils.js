@@ -2,6 +2,7 @@ const ld = require('lodash')
 const Promise = require('bluebird')
 const Ajv = require('ajv')
 const { markError } = require('@fulldive/common/src/tracer')
+const errors = require('common-errors')
 
 const ajv = new Ajv({
   coerceTypes: 'array',
@@ -86,7 +87,7 @@ function text2obj(input) {
 
 function ensureIsFuction(func, message = 'function expected') {
   if (!func || !ld.isFunction(func)) {
-    throw new Error(message)
+    throw errors.ArgumentError(message)
   }
   return func
 }
@@ -154,14 +155,14 @@ module.exports = {
 
   registerRemoteTransport(remoteTransportsStorage, name, wrapper, options = {}) {
     if (remoteTransportsStorage[name]) {
-      throw new Error(`.register(remote): ${name} already exists`)
+      throw errors.ArgumentError(`.register(remote): ${name} already exists`)
     }
     remoteTransportsStorage[name] = { options, wrapper }
   },
 
   registerTransport(transportsStorage, name, transportMethods, options = {}) {
     if (transportsStorage[name]) {
-      throw new Error(`.register(transport): ${name} already exists`)
+      throw errors.ArgumentError(`.register(transport): ${name} already exists`)
     }
     transportsStorage[name] = Object.assign({}, transportMethods, { options })
   },
@@ -178,7 +179,7 @@ module.exports = {
   throwIfPatternExists(matcher, pattern) {
     const foundPattern = matcher.lookup(pattern, { patterns: true })
     if (ld.isEqual(foundPattern, pattern)) {
-      throw new Error(
+      throw errors.ArgumentError(
         `.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(
           pattern
         )}`
@@ -191,10 +192,13 @@ module.exports = {
       // this method found in local patterns
       return [payload, {}]
     }
+    if (!remoteTransportsStorage[payload]) {
+      throw errors.NotFoundError(`transport "${payload}" does not exist`)
+    }
     // thereis a string in payload - redirect to external transport
     const { request, options } = remoteTransportsStorage[payload] || {}
     if (!request) {
-      throw new Error(`transport ${payload} has no .request method`)
+      throw errors.ArgumentError(`transport "${payload}" has no .request method`)
     }
     if (options.timeout && !headers.timeout) {
       // redefine pattern timeout if transport-specific is set
@@ -246,7 +250,7 @@ module.exports = {
 
     if (!areHeadersValid(headers)) {
       // should append defaults, convert values into valid ones etc
-      throw new Error(ajv.errorsText(areHeadersValid.errors))
+      throw errors.ValidationError(ajv.errorsText(areHeadersValid.errors))
     }
     return headers
   },
