@@ -103,7 +103,7 @@ class Bishop {
   // listen for pattern and execute payload on success
   async follow(message, listener) {
     const [pattern, headers] = utils.split(message)
-    const ignoreSameMessage = this.config.ignoreSameMessage
+    const { ignoreSameMessage } = this.config
     const eventEmitter = this.eventEmitter
     const tracer = this.tracer
 
@@ -125,6 +125,7 @@ class Bishop {
       } catch (err) {
         finishSpan(span, err)
         eventEmitter.emit(`notify.${id}.error`, err, message, headers)
+        throw err // throw this error so transport can catch and handle it
       }
     }
     // subscribe to local event
