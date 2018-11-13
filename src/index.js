@@ -240,7 +240,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     const result = patternMatcher.lookup(pattern, { patterns: true, payloads: true })
     if (!result) {
       return this.emitError(
-        errors.NotFoundError(utils.beautify(sourceMessage)),
+        errors.NotFoundError(`Pattern not found: ${utils.beautify(sourceMessage)}`),
         utils.normalizeHeaders(normalizeHeadersParams),
         span
       )
