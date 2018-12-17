@@ -30,7 +30,7 @@ const defaultConfig = {
   }
 }
 
-const uniqueIds = LRU({
+const uniqueIds = new LRU({
   maxAge: 60 * 1000
 })
 

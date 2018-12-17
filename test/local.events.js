@@ -1,4 +1,4 @@
-const { test } = require('ava')
+const test = require('ava')
 const Promise = require('bluebird')
 const Bishop = require(process.env.PWD)
 

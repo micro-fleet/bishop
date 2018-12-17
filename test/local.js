@@ -1,6 +1,7 @@
-const { test } = require('ava')
+const test = require('ava')
 const Bishop = require(process.env.PWD)
 const Promise = require('bluebird')
+const { noop } = require('lodash')
 
 test('create bishop instance', async t => {
   const bishop = new Bishop()
@@ -30,10 +31,9 @@ test('check .forbidSameRouteNames option', async t => {
   const bishop = new Bishop({
     forbidSameRouteNames: true
   })
-  bishop.add('role: test, text: plain', console.log)
-  t.throws(() => {
-    bishop.add('role: test, text: plain', console.log)
-  }, /pattern already exist/)
+  bishop.add('role: test, text: plain', noop)
+  const f = () => bishop.add('role: test, text: plain', noop)
+  t.throws(f, /pattern already exist/)
 })
 
 test('remove pattern operation', async t => {
@@ -41,18 +41,19 @@ test('remove pattern operation', async t => {
   bishop.add('role: test, remove: true', () => 'remove')
   t.is(await bishop.act('role: test, remove: true'), 'remove')
   bishop.remove('role: test, remove: true')
-  const error = await t.throws(bishop.act('role: test, remove: true'))
+  const f = () => bishop.act('role: test, remove: true')
+  const error = await t.throwsAsync(f)
   t.is(error.name, 'NotFoundError')
 })
 
 test('invalid parameters', async t => {
   const bishop = new Bishop()
-  await t.throws(bishop.act(), /at least one search pattern/)
-  const error = await t.throws(bishop.act('role: test, act: nosuch'), /Pattern not found/)
+  await t.throwsAsync(() => bishop.act(), /at least one search pattern/)
+  const fNoSuch = () => bishop.act('role: test, act: nosuch')
+  const error = await t.throwsAsync(fNoSuch, /Pattern not found/)
   t.is(error.name, 'NotFoundError')
-  await t.throws(() => {
-    bishop.add('role: test, act: not-registered')
-  }, /pass pattern handler/)
+  const fNotRegistered = () => bishop.add('role: test, act: not-registered')
+  await t.throws(fNotRegistered, /pass pattern handler/) // NOTE: threw synchronously
 })
 
 test('check $timeout', async t => {
@@ -65,10 +66,8 @@ test('check $timeout', async t => {
     return 'success'
   })
   t.is(await bishop.act('role:test ,act:timeout'), 'success')
-  await t.throws(
-    bishop.act('role:test, act:timeout', { delay: timeout + 100 }),
-    /pattern timeout after/
-  )
+  const f = () => bishop.act('role:test, act:timeout', { delay: timeout + 100 })
+  await t.throwsAsync(f, /pattern timeout after/)
 })
 
 test('check $nowait', async t => {
@@ -174,7 +173,8 @@ test('error handlers', async t => {
   defaultBishop.add('role:test, act:error', async () => {
     throw new Error('test error')
   })
-  t.throws(defaultBishop.act('role:test, act:error'), /test error/)
+  const f = () => defaultBishop.act('role:test, act:error')
+  t.throwsAsync(f, /test error/)
 
   let customError
   const customBishop = new Bishop({
