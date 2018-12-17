@@ -176,17 +176,6 @@ module.exports = {
     globalQueue.push([payload, {}])
   },
 
-  throwIfPatternExists(matcher, pattern) {
-    const foundPattern = matcher.lookup(pattern, { patterns: true })
-    if (ld.isEqual(foundPattern, pattern)) {
-      throw errors.ArgumentError(
-        `.add: .forbidSameRouteNames option is enabled, and pattern already exists: ${beautify(
-          pattern
-        )}`
-      )
-    }
-  },
-
   createPayloadWrapper(payload, headers, remoteTransportsStorage) {
     if (headers.local || ld.isFunction(payload)) {
       // this method found in local patterns

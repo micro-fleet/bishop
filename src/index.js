@@ -10,7 +10,6 @@ const errors = require('common-errors')
 
 const {
   split,
-  throwIfPatternExists,
   registerInMatcher,
   beautify,
   routingKeyFromPattern,
@@ -25,7 +24,7 @@ const {
   createChainRunnerPromise
 } = require('./utils')
 
-// const utils = require('./utils')
+const { validateAddArguments } = require('./helpers')
 
 // default options for bishop instance
 const defaultConfig = {
@@ -96,21 +95,14 @@ class Bishop {
   }
 
   // register payload for specified pattern
-  add(message, payload) {
-    if (!message) {
-      throw errors.ArgumentError('.add: looks like you trying to add an empty pattern')
-    }
-    if (!payload) {
-      throw errors.ArgumentError('.add: please pass pattern handler as last parameter')
-    }
-    const [pattern, options] = split(message)
-    if (this.config.forbidSameRouteNames) {
-      throwIfPatternExists(this.globalPatternMatcher, pattern)
-    }
-    registerInMatcher(this.globalPatternMatcher, [pattern, options], payload) // add payload to global pattern matcher
-    if (ld.isFunction(payload)) {
+  add(_pattern, _handler) {
+    const { pattern, options, handler } = validateAddArguments(this, _pattern, _handler)
+
+    // add payload to global pattern matcher
+    registerInMatcher(this.globalPatternMatcher, [pattern, options], handler)
+    if (ld.isFunction(handler)) {
       // also register payload as local function (opposite to remote network calls)
-      registerInMatcher(this.localPatternMatcher, [pattern, options], payload)
+      registerInMatcher(this.localPatternMatcher, [pattern, options], handler)
     }
   }
 
