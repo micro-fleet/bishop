@@ -119,7 +119,7 @@ class Bishop {
         // do not emit same message
         return
       }
-      const spanName = beautify(headers.pattern, 20)
+      const spanName = beautify(headers.pattern, 30)
       const span = headers.trace && createTraceSpan(tracer, spanName, headers.trace)
       if (span) {
         span.setTag('bishop.follow.pattern', beautify(headers.pattern))
@@ -228,7 +228,7 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = split(message, ...payloads)
-    const spanName = beautify(actHeaders.pattern, 20)
+    const spanName = beautify(pattern, 30)
     const span = actHeaders.trace && createTraceSpan(this.tracer, spanName, actHeaders.trace)
     if (span) {
       span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
