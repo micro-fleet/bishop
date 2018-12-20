@@ -291,7 +291,9 @@ module.exports = {
           return { message, headers }
         })
         .catch(err => {
-          markError(span, err)
+          if (span) {
+            markError(span, err)
+          }
           return {
             message: errorHandler(err, headers),
             headers

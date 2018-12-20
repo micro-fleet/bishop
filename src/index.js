@@ -119,17 +119,24 @@ class Bishop {
         // do not emit same message
         return
       }
-      const span = createTraceSpan(tracer, 'bishop.follow', headers.trace)
-      span.setTag('bishop.follow.pattern', beautify(headers.pattern))
-      span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
+      const spanName = beautify(headers.pattern, 20)
+      const span = headers.trace && createTraceSpan(tracer, spanName, headers.trace)
+      if (span) {
+        span.setTag('bishop.follow.pattern', beautify(headers.pattern))
+        span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
+      }
       uniqueIds.set(id, true)
 
       try {
         const result = await listener(message, headers)
-        finishSpan(span)
+        if (span) {
+          finishSpan(span)
+        }
         eventEmitter.emit(`notify.${id}.success`, result, message, headers)
       } catch (err) {
-        finishSpan(span, err)
+        if (span) {
+          finishSpan(span, err)
+        }
         eventEmitter.emit(`notify.${id}.error`, err, message, headers)
         throw err // throw this error so transport can catch and handle it
       }
@@ -221,9 +228,12 @@ WARN: register('before|after', pattern, handler) order not guaranteed
   async actRaw(message, ...payloads) {
     const actStarted = calcDelay(null, false)
     const [pattern, actHeaders, sourceMessage] = split(message, ...payloads)
-    const span = createTraceSpan(this.tracer, 'bishop.act', actHeaders.trace)
-    span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
-    span.setTag('bishop.act.pattern', beautify(pattern))
+    const spanName = beautify(actHeaders.pattern, 20)
+    const span = actHeaders.trace && createTraceSpan(this.tracer, spanName, actHeaders.trace)
+    if (span) {
+      span.setTag(opentracing.Tags.SPAN_KIND_RPC_CLIENT, true)
+      span.setTag('bishop.act.pattern', beautify(pattern))
+    }
 
     const normalizeHeadersParams = {
       actHeaders,
@@ -251,7 +261,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
 
     const matchedPattern = result.pattern
     const [payload, addHeaders] = result.payload
-    span.setTag('bishop.act.match', beautify(matchedPattern))
+    if (span) {
+      span.setTag('bishop.act.match', beautify(matchedPattern))
+    }
 
     // resulting message headers (heders from .act will rewrite headers from .add by default)
     normalizeHeadersParams.addHeaders = addHeaders
@@ -303,14 +315,18 @@ WARN: register('before|after', pattern, handler) order not guaranteed
     if (headers.nowait) {
       // sometimes client dont want to wait, so we simply launch chain in async mode
       chainRunnerAsync()
-      finishSpan(span)
+      if (span) {
+        finishSpan(span)
+      }
       return Promise.resolve({ message: undefined, headers })
     }
 
     if (!timeout) {
       // no need to handle timeout
       return chainRunnerAsync().tap(() => {
-        finishSpan(span)
+        if (span) {
+          finishSpan(span)
+        }
       })
     }
 
@@ -324,7 +340,9 @@ WARN: register('before|after', pattern, handler) order not guaranteed
         )
       })
       .tap(() => {
-        finishSpan(span)
+        if (span) {
+          finishSpan(span)
+        }
       })
   }
 }

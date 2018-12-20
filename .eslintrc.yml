@@ -11,7 +11,7 @@ env:
   mocha: true
   es6: true
 rules:
-  complexity: [ warn, 10 ]
+  complexity: [ warn, 12 ]
   semi: [ error, never ]
   no-case-declarations: warn
   no-console: off
